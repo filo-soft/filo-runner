@@ -1,6 +1,15 @@
 @media (max-width: 700px) {
   .hud-score {
-    top: 108px;
+    top: 27px;
+  }
+
+  .toast {
+    top: 150px;
+  }
+
+  .qr-float img {
+    width: 360px;
+    height: 360px;
   }
 }
 
