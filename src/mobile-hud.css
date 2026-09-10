@@ -7,6 +7,10 @@
     top: 150px;
   }
 
+  .qr-float {
+    pointer-events: auto;
+  }
+
   .qr-float img {
     width: 360px;
     height: 360px;
