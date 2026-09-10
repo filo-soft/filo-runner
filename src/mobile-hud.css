@@ -33,3 +33,25 @@
   width: 42px;
   height: 42px;
 }
+
+/* Main menu: make the record more prominent and lift the start CTA. */
+.intro .start-button {
+  transform: translateY(-14px);
+}
+.intro .start-button:hover:not(:disabled) {
+  transform: translateY(-16px);
+}
+.intro .start-button:active:not(:disabled) {
+  transform: translateY(-11px);
+}
+.intro .start-meta {
+  font-size: 12px;
+  margin-top: 7px;
+}
+.intro .start-meta svg {
+  width: 15px;
+  height: 15px;
+}
+.intro .start-meta b {
+  font-size: 14px;
+}
