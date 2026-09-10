@@ -79,7 +79,8 @@ proto.spawn = function () {
     add('ramp', lane, rampZ);
     const edgeSide = Math.random() < .5 ? -1 : 1;
     const bonus = add('bonusCoin', lane, rampZ - 1.32);
-    bonus.mesh.position.x = lane * 2.2 + edgeSide * 1.12 + this.bendOff(bonus.mesh.position.z);
+    bonus.laneX = lane * 2.2 + edgeSide * 1.12;
+    bonus.mesh.position.x = bonus.laneX + this.bendOff(bonus.mesh.position.z);
     bonus.mesh.position.y = 2.28;
     const safe = lane === 0 ? (row % 2 ? -1 : 1) : 0;
     coinLine(safe, -82, 5, 1.55, .9);
