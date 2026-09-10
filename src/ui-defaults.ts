@@ -13,8 +13,26 @@ const enableDefaultSound = () => {
   return true;
 };
 
-const soundTimer = window.setInterval(() => {
+const makeQrClickable = () => {
+  let changed = false;
+  document.querySelectorAll<HTMLImageElement>('.qr-float img').forEach(img => {
+    if (img.parentElement?.tagName === 'A') return;
+    const link = document.createElement('a');
+    link.href = 'https://t.me/filosoft_development';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.setAttribute('aria-label', 'Открыть FiloSoft Development в Telegram');
+    img.replaceWith(link);
+    link.appendChild(img);
+    changed = true;
+  });
+  return changed;
+};
+
+const uiTimer = window.setInterval(() => {
   updateMobileGuide();
-  if (enableDefaultSound()) window.clearInterval(soundTimer);
+  const soundReady = enableDefaultSound();
+  makeQrClickable();
+  if (soundReady && document.querySelector('.qr-float img')?.parentElement?.tagName === 'A') window.clearInterval(uiTimer);
 }, 50);
-window.setTimeout(() => window.clearInterval(soundTimer), 5000);
+window.setTimeout(() => window.clearInterval(uiTimer), 5000);
