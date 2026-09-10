@@ -58,6 +58,7 @@ export default function App() {
 
   const start = () => {
     if (!gameRef.current) return;
+    (gameRef.current as any).unlockSound?.();
     setPanel(null); setMode('playing'); setStats(emptyStats); setNewBest(false); gameRef.current.start();
     (document.activeElement as HTMLElement)?.blur(); stageRef.current?.focus({ preventScroll: true });
   };
@@ -109,7 +110,7 @@ export default function App() {
   return (
     <div className="app">
       <main ref={stageRef} className={`stage ${mode === 'menu' ? 'is-menu' : ''}`} tabIndex={-1} aria-label="Filo Runner"
-        onPointerDown={e => { if (mode !== 'playing' || (e.target as HTMLElement).closest('button')) return; touch.current = { x: e.clientX, y: e.clientY, id: e.pointerId }; e.currentTarget.setPointerCapture(e.pointerId); }}
+        onPointerDown={e => { if (mode === 'playing' || mode === 'menu') (gameRef.current as any)?.unlockSound?.(); if (mode !== 'playing' || (e.target as HTMLElement).closest('button')) return; touch.current = { x: e.clientX, y: e.clientY, id: e.pointerId }; e.currentTarget.setPointerCapture(e.pointerId); }}
         onPointerMove={e => { const t = touch.current; if (!t || t.id !== e.pointerId) return; const dx = e.clientX - t.x, dy = e.clientY - t.y; if (Math.max(Math.abs(dx), Math.abs(dy)) > 22) { gameRef.current?.control(Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up'); touch.current = null; } }}
         onPointerUp={() => { touch.current = null; }} onPointerCancel={() => { touch.current = null; }}>
         <div className="scene" ref={sceneRef} />
