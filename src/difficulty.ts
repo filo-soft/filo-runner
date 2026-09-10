@@ -7,12 +7,12 @@ const originalStep = proto.step;
 const originalBuildWorld = proto.buildWorld;
 const originalBuildPrototypes = proto.buildPrototypes;
 const originalSupportAt = proto.supportAt;
+const originalStart = proto.start;
+const originalToggleSound = proto.toggleSound;
 
-// Build a climbable Greek marble "ramp/train-car" once.
 const ensureRamp = function () {
   if (this.prototypes.has('ramp')) return;
   const ramp = new T.Group();
-  // Seven shallow steps create a smooth-looking climb without adding a new asset.
   for (let i = 0; i < 7; i++) {
     const h = .22 + i * .22;
     this.box(ramp, 0, h / 2, 2.7 - i * .72, 1.75, h, .78, this.marble);
@@ -35,7 +35,6 @@ proto.spawn = function () {
     for (let i = 0; i < count; i++) add('coin', lane, z - i * step).mesh.position.y = y;
   };
 
-  // Bring back the climbable platforms regularly, with a clear landing lane.
   if (row > 2 && row % 7 === 0) {
     const lane = Math.floor(Math.random() * 3) - 1;
     add('ramp', lane, -96);
@@ -79,7 +78,6 @@ proto.spawn = function () {
   this.row++;
 };
 
-// Make the climb surface actually raise the runner, while preserving the original platform logic.
 proto.supportAt = function (z: number) {
   let h = originalSupportAt.call(this, z);
   for (const item of this.items as any[]) {
@@ -87,7 +85,6 @@ proto.supportAt = function (z: number) {
     const rel = z - item.mesh.position.z;
     let rh = 0;
     if (rel >= -1.95 && rel <= 3.15) {
-      // Descending world-z means approaching the high end first; interpolate up the ramp.
       const p = T.MathUtils.clamp((3.15 - rel) / 5.1, 0, 1);
       rh = p < .82 ? p * 1.62 : 1.62;
     }
@@ -96,18 +93,68 @@ proto.supportAt = function (z: number) {
   return h;
 };
 
+// Quiet, soft Dorian-style ambient loop synthesized locally: no external audio file or sharp hits.
+proto.startMusic = function () {
+  if (!this.sound || this.musicTimer) return;
+  this.unlockAudio();
+  const playPhrase = () => {
+    if (!this.sound || !this.audio || this.audio.state === 'closed') return;
+    const a: AudioContext = this.audio;
+    const notes = [293.66, 329.63, 349.23, 392.0, 440.0, 392.0, 349.23, 329.63];
+    const base = a.currentTime + .03;
+    notes.forEach((freq, i) => {
+      const osc = a.createOscillator();
+      const gain = a.createGain();
+      osc.type = 'sine';
+      const t = base + i * .52;
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(.0001, t);
+      gain.gain.linearRampToValueAtTime(.014, t + .08);
+      gain.gain.exponentialRampToValueAtTime(.0001, t + .48);
+      osc.connect(gain); gain.connect(a.destination);
+      osc.start(t); osc.stop(t + .5);
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+    });
+  };
+  playPhrase();
+  this.musicTimer = window.setInterval(playPhrase, 4160);
+};
+
+proto.stopMusic = function () {
+  if (this.musicTimer) { window.clearInterval(this.musicTimer); this.musicTimer = 0; }
+};
+
+// A real touch/click now unlocks the context on mobile, even when the UI enabled sound programmatically.
+proto.unlockSound = function () {
+  if (!this.sound) return;
+  this.unlockAudio();
+  this.startMusic();
+};
+
+proto.toggleSound = function () {
+  const enabled = originalToggleSound.call(this);
+  if (enabled) this.startMusic(); else this.stopMusic();
+  return enabled;
+};
+
 proto.step = function (dt: number) {
   const t = this.stats.time as number;
-  // Start about 12% faster, then continue ramping up with the run.
   const factor = 1.12 + Math.min(.32, Math.max(0, t - 8) * .004);
   const toast = this.onToast;
-  this.onToast = (text: string) => { if (!/^\d+ монет/.test(text)) toast(text); };
+  this.onToast = (text: string) => {
+    if (/^\d+ монет/.test(text)) return;
+    if (/^Темп растёт/.test(text)) {
+      const last = this.lastTempoToast as number | undefined;
+      if (last !== undefined && t - last < 60) return;
+      this.lastTempoToast = t;
+    }
+    toast(text);
+  };
   originalStep.call(this, dt * factor);
   this.onToast = toast;
 };
 
-// Make the long background temple much higher so its roof cannot cut into the play view.
-// Also strengthen the lane curvature so turns are visibly present again.
+// Keep the temple roof comfortably above the mobile camera view.
 proto.buildWorld = function () {
   originalBuildWorld.call(this);
   const temple = this.templeGroup;
@@ -117,13 +164,11 @@ proto.buildWorld = function () {
   }
 };
 
-const originalBendOff = proto.bendOff;
+// The bends were already in the original game; make them more visible so they are unmistakable.
 proto.bendOff = function (z: number) {
   return this.bend * T.MathUtils.clamp((-z - 14) / 70, 0, 1) ** 2 * 10;
 };
 
-// Keep turns active for a little longer so the player can actually read the curve.
-const originalStart = proto.start;
 proto.start = function () {
   originalStart.call(this);
   this.bendTimer = 8;
