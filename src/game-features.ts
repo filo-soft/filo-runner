@@ -28,29 +28,8 @@ proto.reviveForCoins = function () {
   return true;
 };
 
-const glowRunner = (game: any) => {
-  if (game.levelGlowTimer) window.clearTimeout(game.levelGlowTimer);
-  const saved: Array<{ material: any; emissive: number; intensity: number }> = [];
-  game.runner.traverse((obj: T.Object3D) => {
-    const mesh = obj as T.Mesh;
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    materials.forEach((material: any) => {
-      if (!material?.emissive) return;
-      saved.push({ material, emissive: material.emissive.getHex(), intensity: material.emissiveIntensity ?? 1 });
-      material.emissive.setHex(0xffe38a);
-      material.emissiveIntensity = .9;
-    });
-  });
-  game.levelGlowTimer = window.setTimeout(() => {
-    saved.forEach(({ material, emissive, intensity }) => {
-      material.emissive.setHex(emissive);
-      material.emissiveIntensity = intensity;
-    });
-    game.levelGlowTimer = 0;
-  }, 1000);
-};
-
-// Every 10,000 main points: temporary character glow + a gentle level-up chime.
+// Every 10,000 main points: gentle level-up chime only.
+// The temporary character glow was removed because it interfered with materials/textures.
 proto.step = function (dt: number) {
   originalStep.call(this, dt);
   if (this.mode !== 'playing') return;
@@ -58,7 +37,6 @@ proto.step = function (dt: number) {
   const previous = (this.levelMilestone as number | undefined) ?? 0;
   if (milestone > previous) {
     this.levelMilestone = milestone;
-    glowRunner(this);
     this.tone(820, .11, 1280, 'sine');
     window.setTimeout(() => {
       if (this.sound && this.mode === 'playing') this.tone(1040, .13, 1560, 'sine');
