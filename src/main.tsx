@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import "./mobile-hud.css";
 import "./ui-defaults";
+import "./difficulty";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(
