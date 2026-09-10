@@ -47,6 +47,16 @@ const ensureLandmarks = function () {
     this.mesh(temple, new T.ExtrudeGeometry(roofShape, { depth: 2.5, bevelEnabled: false }), this.stone, 0, 4.22, -1.25);
     this.prototypes.set('sideTemple', temple);
   }
+  if (!this.prototypes.has('bonusCoin')) {
+    const coin = new T.Group();
+    const orange = new T.MeshStandardMaterial({ color: '#EB5F3C', roughness: .48, metalness: .18 });
+    const orangeLight = new T.MeshStandardMaterial({ color: '#ff9a79', roughness: .4, metalness: .15 });
+    const disc = this.mesh(coin, new T.CylinderGeometry(.31, .31, .1, 28), orange);
+    disc.rotation.x = Math.PI / 2;
+    const ring = this.mesh(coin, new T.TorusGeometry(.255, .022, 7, 28), orangeLight, 0, 0, .058);
+    ring.rotation.x = Math.PI / 2;
+    this.prototypes.set('bonusCoin', coin);
+  }
 };
 
 proto.buildPrototypes = function () {
@@ -67,12 +77,10 @@ proto.spawn = function () {
     const lane = Math.floor(Math.random() * 3) - 1;
     const rampZ = -96;
     add('ramp', lane, rampZ);
-    for (let i = 0; i < 7; i++) {
-      const localZ = 2.7 - i * .72;
-      const stairHeight = .22 + i * .22;
-      const coin = add('coin', lane, rampZ + localZ);
-      coin.mesh.position.y = stairHeight + .72;
-    }
+    const edgeSide = Math.random() < .5 ? -1 : 1;
+    const bonus = add('bonusCoin', lane, rampZ - 1.32);
+    bonus.mesh.position.x = lane * 2.2 + edgeSide * 1.12 + this.bendOff(bonus.mesh.position.z);
+    bonus.mesh.position.y = 2.28;
     const safe = lane === 0 ? (row % 2 ? -1 : 1) : 0;
     coinLine(safe, -82, 5, 1.55, .9);
     this.row++;
@@ -223,10 +231,10 @@ proto.animatePose = function () {
   if (d > .08) {
     (this.legs as any[]).forEach(({ thigh, knee }, i) => {
       const s = i === 0 ? 1 : -1;
-      thigh.rotation.x = -.58 - d * .22 + s * .08;
-      thigh.rotation.z = s * (.12 + d * .08);
-      knee.rotation.x = .58 + d * .18;
-      knee.rotation.z = -s * .04;
+      thigh.rotation.x = -1.22 + s * .07 + (1 - d) * .45;
+      thigh.rotation.z = s * (.1 + d * .04);
+      knee.rotation.x = .06 + (1 - d) * .22;
+      knee.rotation.z = -s * .025;
       thigh.visible = true;
       knee.visible = true;
     });
