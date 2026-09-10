@@ -16,7 +16,8 @@
     height: 150px;
   }
 
-  .scene-top .round-button {
+  .scene-top .round-button,
+  .hud-right .round-button {
     width: 46px;
     height: 46px;
   }
@@ -27,7 +28,8 @@
   display: none !important;
 }
 
-.scene-top .round-button {
-  width: 46px;
-  height: 46px;
+.scene-top .round-button,
+.hud-right .round-button {
+  width: 42px;
+  height: 42px;
 }
