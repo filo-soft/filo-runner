@@ -7,6 +7,7 @@ import "./difficulty";
 import "./temple-roof-fix";
 import "./bonus-coin-fix";
 import "./slide-legs-fix";
+import "./audio-fix";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(
