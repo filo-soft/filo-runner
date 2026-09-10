@@ -78,10 +78,10 @@ proto.spawn = function () {
     const rampZ = -96;
     add('ramp', lane, rampZ);
     const edgeSide = Math.random() < .5 ? -1 : 1;
-    const bonus = add('bonusCoin', lane, rampZ - 1.32);
-    bonus.laneX = lane * 2.2 + edgeSide * 1.12;
+    const bonus = add('bonusCoin', lane, rampZ - 1.95);
+    bonus.laneX = lane * 2.2 + edgeSide * .55;
     bonus.mesh.position.x = bonus.laneX + this.bendOff(bonus.mesh.position.z);
-    bonus.mesh.position.y = 2.28;
+    bonus.mesh.position.y = 2.08;
     const safe = lane === 0 ? (row % 2 ? -1 : 1) : 0;
     coinLine(safe, -82, 5, 1.55, .9);
     this.row++;
@@ -135,7 +135,6 @@ proto.supportAt = function (z: number) {
   return h;
 };
 
-// Quiet, soft Dorian-style ambient loop synthesized locally: no external audio file or sharp hits.
 proto.startMusic = function () {
   if (!this.sound || this.musicTimer) return;
   this.unlockAudio();
@@ -192,8 +191,6 @@ proto.step = function (dt: number) {
     toast(text);
   };
 
-  // The ramp bonus is a special orange coin worth 10. Collect it before the original
-  // obstacle loop sees it, because the base game only knows normal coin collisions.
   for (let i = this.items.length - 1; i >= 0; i--) {
     const item = this.items[i];
     if (item.type !== 'bonusCoin') continue;
