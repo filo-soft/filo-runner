@@ -12,12 +12,22 @@
   }
 
   .qr-float img {
-    width: 360px;
-    height: 360px;
+    width: 150px;
+    height: 150px;
+  }
+
+  .scene-top .round-button {
+    width: 46px;
+    height: 46px;
   }
 }
 
 .touch-controls,
 .fullscreen-button {
   display: none !important;
+}
+
+.scene-top .round-button {
+  width: 46px;
+  height: 46px;
 }
