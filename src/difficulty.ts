@@ -49,12 +49,16 @@ const ensureLandmarks = function () {
   }
   if (!this.prototypes.has('bonusCoin')) {
     const coin = new T.Group();
-    const orange = new T.MeshStandardMaterial({ color: '#EB5F3C', roughness: .48, metalness: .18 });
-    const orangeLight = new T.MeshStandardMaterial({ color: '#ff9a79', roughness: .4, metalness: .15 });
-    const disc = this.mesh(coin, new T.CylinderGeometry(.31, .31, .1, 28), orange);
+    const orange = new T.MeshStandardMaterial({ color: '#EB5F3C', roughness: .35, metalness: .25 });
+    const orangeLight = new T.MeshStandardMaterial({ color: '#ffb08f', roughness: .38, metalness: .2 });
+    const disc = this.mesh(coin, new T.CylinderGeometry(.25, .25, .085, 24), orange);
     disc.rotation.x = Math.PI / 2;
-    const ring = this.mesh(coin, new T.TorusGeometry(.255, .022, 7, 28), orangeLight, 0, 0, .058);
+    const ring = this.mesh(coin, new T.TorusGeometry(.205, .019, 6, 24), orangeLight, 0, 0, .055);
     ring.rotation.x = Math.PI / 2;
+    const engraving = document.createElement('canvas'); engraving.width = engraving.height = 64;
+    const c = engraving.getContext('2d')!; c.fillStyle = '#ffd0bd'; c.font = 'bold 24px monospace'; c.textAlign = 'center'; c.fillText('</>', 32, 40);
+    const map = new T.CanvasTexture(engraving); map.colorSpace = T.SRGBColorSpace;
+    this.mesh(coin, new T.PlaneGeometry(.35, .35), new T.MeshBasicMaterial({ map, transparent: true, side: T.DoubleSide }), 0, 0, .058);
     this.prototypes.set('bonusCoin', coin);
   }
 };
@@ -77,11 +81,11 @@ proto.spawn = function () {
     const lane = Math.floor(Math.random() * 3) - 1;
     const rampZ = -96;
     add('ramp', lane, rampZ);
-    const edgeSide = Math.random() < .5 ? -1 : 1;
-    const bonus = add('bonusCoin', lane, rampZ - 1.95);
-    bonus.laneX = lane * 2.2 + edgeSide * .55;
+    // One bonus coin, centered over the landing platform: same shape as the blue </> coin, orange only.
+    const bonus = add('bonusCoin', lane, rampZ - 1.25);
+    bonus.laneX = lane * 2.2;
     bonus.mesh.position.x = bonus.laneX + this.bendOff(bonus.mesh.position.z);
-    bonus.mesh.position.y = 2.08;
+    bonus.mesh.position.y = 2.32;
     const safe = lane === 0 ? (row % 2 ? -1 : 1) : 0;
     coinLine(safe, -82, 5, 1.55, .9);
     this.row++;
@@ -234,6 +238,10 @@ proto.buildWorld = function () {
   if (temple) {
     temple.scale.set(1.12, 1.75, 1.12);
     temple.position.y = .9;
+    // Keep the columns below, but lift the entablature and triangular roof well above the mobile camera line.
+    temple.children.forEach((child: T.Object3D) => {
+      if (child.position.y > 8.4) child.position.y += 4.5;
+    });
   }
 };
 
