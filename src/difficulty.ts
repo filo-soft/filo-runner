@@ -67,7 +67,6 @@ proto.spawn = function () {
     const lane = Math.floor(Math.random() * 3) - 1;
     const rampZ = -96;
     add('ramp', lane, rampZ);
-    // Put each coin directly over a stair, using the stair's actual height.
     for (let i = 0; i < 7; i++) {
       const localZ = 2.7 - i * .72;
       const stairHeight = .22 + i * .22;
@@ -171,7 +170,6 @@ proto.toggleSound = function () {
 };
 
 proto.step = function (dt: number) {
-  const beforeDistance = this.stats.distance as number;
   const t = this.stats.time as number;
   const factor = 1.12 + Math.min(.32, Math.max(0, t - 8) * .004);
   const toast = this.onToast;
@@ -186,7 +184,6 @@ proto.step = function (dt: number) {
   };
   originalStep.call(this, dt * factor);
 
-  // Every 1000m: a marble antiquity landmark stands just outside the track.
   const distance = this.stats.distance as number;
   const next = (this.nextLandmarkDistance as number | undefined) ?? 1000;
   if (distance >= next) {
@@ -207,7 +204,6 @@ proto.step = function (dt: number) {
   this.onToast = toast;
 };
 
-// Keep the temple roof comfortably above the mobile camera view.
 proto.buildWorld = function () {
   originalBuildWorld.call(this);
   const temple = this.templeGroup;
@@ -217,12 +213,10 @@ proto.buildWorld = function () {
   }
 };
 
-// The bends were already in the original game; make them more visible so they are unmistakable.
 proto.bendOff = function (z: number) {
   return this.bend * T.MathUtils.clamp((-z - 14) / 70, 0, 1) ** 2 * 10;
 };
 
-// Keep both legs readable during the belly-down slide instead of folding them completely into the torso.
 proto.animatePose = function () {
   originalAnimatePose.call(this);
   const d = this.duck as number;
