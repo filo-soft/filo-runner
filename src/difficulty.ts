@@ -190,6 +190,24 @@ proto.step = function (dt: number) {
     }
     toast(text);
   };
+
+  // The ramp bonus is a special orange coin worth 10. Collect it before the original
+  // obstacle loop sees it, because the base game only knows normal coin collisions.
+  for (let i = this.items.length - 1; i >= 0; i--) {
+    const item = this.items[i];
+    if (item.type !== 'bonusCoin') continue;
+    const z = item.mesh.position.z;
+    if (Math.abs(z - 1.2) < .7 && Math.abs(item.mesh.position.x - this.runner.position.x) < 1.15 && Math.abs(item.mesh.position.y - (this.groundY + this.jump + .9)) < 1.0) {
+      this.stats.coins += 10;
+      this.stats.score += 100;
+      this.burst(item.mesh.position);
+      this.tone(980, .16, 1450);
+      this.recycle(item);
+      this.items.splice(i, 1);
+      continue;
+    }
+  }
+
   originalStep.call(this, dt * factor);
 
   const distance = this.stats.distance as number;
