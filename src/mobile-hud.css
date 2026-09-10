@@ -1,57 +1,37 @@
 @media (max-width: 700px) {
-  .hud-score {
-    top: 27px;
-  }
-
-  .toast {
-    top: 150px;
-  }
-
-  .qr-float {
-    pointer-events: auto;
-  }
-
-  .qr-float img {
-    width: 120px;
-    height: 120px;
-  }
-
+  .hud-score { top: 27px; }
+  .toast { top: 150px; }
+  .qr-float { pointer-events: auto; }
+  .qr-float img { width: 120px; height: 120px; }
   .scene-top .round-button,
-  .hud-right .round-button {
-    width: 46px;
-    height: 46px;
-  }
+  .hud-right .round-button { width: 46px; height: 46px; }
 }
 
 .touch-controls,
-.fullscreen-button {
-  display: none !important;
-}
+.fullscreen-button { display: none !important; }
 
 .scene-top .round-button,
-.hud-right .round-button {
-  width: 42px;
-  height: 42px;
-}
+.hud-right .round-button { width: 42px; height: 42px; }
 
 /* Main menu: make the record more prominent and lift the start CTA. */
-.intro .start-button {
-  transform: translateY(-14px);
-}
-.intro .start-button:hover:not(:disabled) {
-  transform: translateY(-16px);
-}
-.intro .start-button:active:not(:disabled) {
-  transform: translateY(-11px);
-}
-.intro .start-meta {
-  font-size: 12px;
-  margin-top: 7px;
-}
-.intro .start-meta svg {
-  width: 15px;
-  height: 15px;
-}
-.intro .start-meta b {
-  font-size: 14px;
+.intro .start-button { transform: translateY(-14px); }
+.intro .start-button:hover:not(:disabled) { transform: translateY(-16px); }
+.intro .start-button:active:not(:disabled) { transform: translateY(-11px); }
+.intro .start-meta { font-size: 12px; margin-top: 7px; }
+.intro .start-meta svg { width: 15px; height: 15px; }
+.intro .start-meta b { font-size: 14px; }
+
+/* Run timer: make the actual time clearly readable. */
+.hud-time b { font-size: 16px; font-weight: 600; color: #5b513f; letter-spacing: .3px; }
+
+.over-actions { display: flex; gap: 10px; margin-top: 24px; }
+.over-actions .primary,
+.over-actions .secondary { flex: 1; margin: 0; min-width: 0; }
+.over-actions .primary { width: auto; }
+.over-actions .secondary { border: 1px solid #d9d0bf; border-radius: 7px; padding: 0 12px; min-height: 52px; color: #6e604c; }
+.over-actions .secondary:hover { background: #f0ebe1; }
+@media (max-width: 520px) {
+  .hud-time b { font-size: 15px; }
+  .over-actions { gap: 8px; }
+  .over-actions .secondary { font-size: 8px; padding: 0 8px; }
 }
