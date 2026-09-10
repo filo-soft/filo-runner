@@ -4,6 +4,7 @@ import "./index.css";
 import "./mobile-hud.css";
 import "./ui-defaults";
 import "./difficulty";
+import "./temple-roof-fix";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(
