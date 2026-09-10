@@ -1,5 +1,10 @@
 @media (max-width: 700px) {
   .hud-score {
-    top: 64px;
+    top: 108px;
   }
+}
+
+.touch-controls,
+.fullscreen-button {
+  display: none !important;
 }
