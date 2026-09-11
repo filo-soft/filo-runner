@@ -9,6 +9,7 @@ import "./bonus-coin-fix";
 import "./slide-legs-fix";
 import "./audio-fix";
 import "./game-features";
+import "./late-game-fix";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(
