@@ -17,20 +17,16 @@ const writeBalance = (value: number) => {
 
 const ensureBalanceUi = () => {
   const stage = document.querySelector('.stage');
-  if (!stage) return false;
+  if (!stage) return;
   let pill = stage.querySelector('.balance-pill') as HTMLElement | null;
   if (!pill) {
     pill = document.createElement('div');
     pill.className = 'balance-pill';
-    pill.innerHTML = '<span class="balance-label">БАЛАНС</span><b class="balance-value">0</b>';
+    pill.innerHTML = '<span class="balance-value">🪙 0</span>';
     stage.appendChild(pill);
   }
   const value = pill.querySelector('.balance-value');
-  if (value) {
-    const next = String(readBalance());
-    if (value.textContent !== next) value.textContent = next;
-  }
-  return true;
+  if (value) value.textContent = `🪙 ${readBalance()}`;
 };
 
 const style = document.createElement('style');
@@ -40,59 +36,50 @@ style.textContent = `
     top: 72px;
     right: 18px;
     z-index: 12;
-    display: flex;
+    display: none;
     align-items: center;
-    gap: 8px;
-    padding: 7px 11px;
+    padding: 7px 10px;
     border: 1px solid rgba(255,255,255,.24);
     border-radius: 999px;
     background: rgba(25,22,32,.58);
     backdrop-filter: blur(10px);
     color: #fff;
     pointer-events: none;
-    font-size: 11px;
+    font-size: 13px;
     line-height: 1;
-    letter-spacing: .08em;
+    letter-spacing: 0;
+    white-space: nowrap;
   }
-  .balance-label { opacity: .62; }
-  .balance-value { font-size: 13px; letter-spacing: 0; }
+  .balance-pill.is-visible { display: flex; }
   @media (max-width: 680px) {
-    .balance-pill { top: 62px; right: 12px; padding: 6px 9px; gap: 6px; font-size: 9px; }
-    .balance-value { font-size: 12px; }
+    .balance-pill { top: 62px; right: 12px; padding: 6px 8px; font-size: 12px; }
   }
 `;
 document.head.appendChild(style);
 
 const titleFix = () => {
   const title = document.querySelector('.intro h1') as HTMLElement | null;
-  if (!title) return false;
+  if (!title) return;
   const span = title.querySelector('span') as HTMLElement | null;
-  if (!span) return false;
-  if (title.firstChild && title.firstChild.nodeValue !== 'Filo–') {
-    title.firstChild.nodeValue = 'Filo–';
-  }
-  if (span.textContent !== 'Runner.') span.textContent = 'Runner.';
-  return true;
+  if (!span) return;
+  title.firstChild && (title.firstChild.nodeValue = 'Filo–');
+  span.textContent = 'Runner.';
 };
 
 let titleObserver: MutationObserver | undefined;
 const bootUiFixes = () => {
-  // The module can be evaluated before <body> exists in some browsers.
-  if (!document.body) return;
-
-  const stageReady = ensureBalanceUi();
-  const titleReady = titleFix();
-
-  // Watch only until the app's DOM has appeared. The previous observer watched
-  // every mutation and then caused its own DOM mutations, which could lock up
-  // the page in an endless MutationObserver loop.
-  if (!titleObserver && (!stageReady || !titleReady)) {
+  ensureBalanceUi();
+  titleFix();
+  const pill = document.querySelector('.balance-pill') as HTMLElement | null;
+  if (pill) {
+    // Balance is a menu/pause element only. Never show it over active gameplay.
+    const mode = (window as any).__runnerGame?.mode;
+    pill.classList.toggle('is-visible', mode === 'menu' || mode === 'paused');
+  }
+  if (!titleObserver) {
     titleObserver = new MutationObserver(() => {
-      const ready = ensureBalanceUi() && titleFix();
-      if (ready) {
-        titleObserver?.disconnect();
-        titleObserver = undefined;
-      }
+      ensureBalanceUi();
+      titleFix();
     });
     titleObserver.observe(document.body, { childList: true, subtree: true });
   }
@@ -115,6 +102,7 @@ const replaceCoinWithBonus = (game: any, coin: any) => {
 proto.start = function () {
   originalStart.call(this);
   this.__balanceRunCoins = 0;
+  (window as any).__runnerGame = this;
   requestAnimationFrame(bootUiFixes);
 };
 
@@ -127,8 +115,6 @@ proto.step = function (dt: number) {
     this.__balanceRunCoins = afterCoins;
   }
 
-  // Bonus coins are deliberately handled here so they remain a collectible
-  // without changing the core obstacle collision code.
   if (this.mode === 'playing') {
     for (let i = this.items.length - 1; i >= 0; i--) {
       const item = this.items[i];
