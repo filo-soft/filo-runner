@@ -33,6 +33,42 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+// Keep collectible trails readable: a coin is never left inside a ground obstacle.
+// This is intentionally lane-based, like the rest of the runner. If the original
+// pattern blocks a coin's lane, move it to the nearest free lane; if all three are
+// occupied, remove that coin instead of creating an impossible collectible.
+const sanitizeCoins = function () {
+  const obstacles = (this.items as any[]).filter((item: any) =>
+    item.type === 'block' || item.type === 'pillar' || item.type === 'arch'
+  );
+  const coins = (this.items as any[]).filter((item: any) => item.type === 'coin' || item.type === 'bonusCoin');
+
+  for (const coin of coins) {
+    // High coin trails (for example above the stepped wall) are deliberately allowed.
+    if (coin.mesh.position.y > 1.55) continue;
+
+    const occupied = (lane: number) => obstacles.some((obstacle: any) =>
+      obstacle.lane === lane && Math.abs(obstacle.mesh.position.z - coin.mesh.position.z) < 1.05
+    );
+    if (!occupied(coin.lane)) continue;
+
+    const candidates = [-1, 0, 1]
+      .filter((lane) => !occupied(lane))
+      .sort((a, b) => Math.abs(a - coin.lane) - Math.abs(b - coin.lane));
+
+    if (candidates.length) {
+      const lane = candidates[0];
+      coin.lane = lane;
+      coin.laneX = lane * 2.2;
+      coin.mesh.position.x = coin.laneX + this.bendOff(coin.mesh.position.z);
+    } else {
+      this.recycle(coin);
+      const index = this.items.indexOf(coin);
+      if (index >= 0) this.items.splice(index, 1);
+    }
+  }
+};
+
 proto.buildPrototypes = function () {
   originalBuildPrototypes.call(this);
   ensureExtraRamp.call(this);
@@ -88,6 +124,8 @@ proto.spawn = function () {
     coin.mesh.position.x = coin.laneX + this.bendOff(coin.mesh.position.z);
     coin.mesh.position.y = .9;
   }
+
+  sanitizeCoins.call(this);
 };
 
 proto.start = function () {
@@ -105,8 +143,11 @@ proto.step = function (dt: number) {
   }
 
   if ((this as any).__edgeBump) {
-    this.shake = Math.max(this.shake as number, .045);
-    this.tone?.(180, .045, 120, 'sine');
+    // The previous .045 world-unit kick was effectively invisible on a phone.
+    // Use a short, clearly readable impact pulse plus a tiny haptic cue.
+    this.shake = Math.max(this.shake as number, .18);
+    this.tone?.(150, .07, 75, 'triangle');
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(32);
     (this as any).__edgeBump = false;
   }
 };
