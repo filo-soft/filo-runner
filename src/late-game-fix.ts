@@ -22,13 +22,21 @@ proto.spawn = function () {
 };
 
 const setCoinReady = function (ready: boolean) {
-  const pill = document.querySelector('.coin-pill');
+  const pill = document.querySelector('.coin-pill') as HTMLElement | null;
   if (!pill) return;
   pill.classList.toggle('second-life-ready', ready);
 };
 
+const style = document.createElement('style');
+style.textContent = `
+  .coin-pill.second-life-ready { color: #c95732; }
+  .coin-pill.second-life-ready .coin-symbol { color: #c95732; }
+`;
+document.head.appendChild(style);
+
 proto.start = function () {
   originalStart.call(this);
+  this.__coinReady = false;
   setCoinReady(false);
 };
 
