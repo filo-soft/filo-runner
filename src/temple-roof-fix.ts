@@ -12,17 +12,35 @@ proto.buildPrototypes = function () {
   const temple = this.prototypes.get('sideTemple') as T.Group | undefined;
   if (!temple || temple.userData.roofRaised) return;
 
-  // sideTemple children: base, 3 columns, entablature, roof.
-  // Stretch the columns upward and lift only the top structure, so the
-  // runner can pass underneath without the roof covering the mobile view.
+  // Match the ordinary roadside columns exactly: the old sideTemple used
+  // short 3.7-unit columns, which made the roof hang into the mobile view.
+  // Rebuild those three column meshes as full roadside-height columns.
   for (let i = 1; i <= 3; i++) {
-    const column = temple.children[i];
-    if (column) column.scale.y *= 1.7;
+    const oldColumn = temple.children[i];
+    if (!oldColumn) continue;
+    const x = oldColumn.position.x;
+    const z = oldColumn.position.z;
+    temple.remove(oldColumn);
+    oldColumn.traverse((child: T.Object3D) => {
+      const mesh = child as T.Mesh;
+      if (mesh.geometry) mesh.geometry.dispose();
+    });
+    const column = this.makeColumn(6.6);
+    column.position.set(x, .3, z);
+    temple.add(column);
   }
+
+  // Put the entablature directly on the taller columns.
   const entablature = temple.children[4];
   const roof = temple.children[5];
-  if (entablature) entablature.position.y += 2.5;
-  if (roof) roof.position.y += 2.5;
+  if (entablature) entablature.position.y = 6.95;
+  if (roof) {
+    roof.position.y = 7.12;
+    // Keep the same triangular footprint, but flatten the triangle vertically.
+    // This keeps it clearly visible as a temple roof without dropping into the
+    // mobile camera's main play area.
+    roof.scale.y = .62;
+  }
 
   temple.userData.roofRaised = true;
 };
