@@ -25,11 +25,11 @@ const ensureBalanceUi = () => {
   if (!pill) {
     pill = document.createElement('div');
     pill.className = 'balance-pill';
-    pill.innerHTML = '<span class="balance-value"></span>';
+    pill.innerHTML = '<span class="balance-coin" aria-hidden="true"><span>&lt;/&gt;</span></span><b class="balance-value"></b>';
     stage.appendChild(pill);
   }
   const value = pill.querySelector('.balance-value') as HTMLElement | null;
-  const text = `🪙 ${readBalance()}`;
+  const text = String(readBalance());
   if (value && value.textContent !== text) value.textContent = text;
   return pill;
 };
@@ -38,34 +38,58 @@ const syncBalanceUi = (game?: any) => {
   const pill = ensureBalanceUi();
   if (!pill) return;
   const mode = game?.mode ?? (window as any).__runnerGame?.mode;
-  const visible = mode === 'menu' || mode === 'paused';
-  pill.classList.toggle('is-visible', visible);
+  pill.classList.toggle('is-visible', mode === 'menu' || mode === 'paused');
 };
 
 const style = document.createElement('style');
 style.textContent = `
   .balance-pill {
     position: absolute;
-    top: 72px;
-    right: 18px;
+    right: 24px;
+    bottom: 24px;
     z-index: 12;
     display: none;
     align-items: center;
-    padding: 7px 10px;
-    border: 1px solid rgba(255,255,255,.24);
+    gap: 8px;
+    padding: 8px 12px 8px 8px;
+    border: 1px solid rgba(255,255,255,.28);
     border-radius: 999px;
-    background: rgba(25,22,32,.58);
+    background: rgba(25,22,32,.62);
     backdrop-filter: blur(10px);
     color: #fff;
     pointer-events: none;
-    font-size: 13px;
     line-height: 1;
-    letter-spacing: 0;
     white-space: nowrap;
+    box-shadow: 0 5px 22px rgba(40,30,20,.12);
   }
   .balance-pill.is-visible { display: flex; }
+  .balance-coin {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 27px;
+    height: 27px;
+    border-radius: 50%;
+    background: linear-gradient(135deg,#7565c8,#30258e);
+    border: 2px solid #b8a5ea;
+    box-shadow: 0 1px 0 #312372, inset 0 1px 2px rgba(255,255,255,.18);
+    color: #cdc0ff;
+    font: 700 7px/1 Arial,sans-serif;
+    letter-spacing: -.8px;
+  }
+  .balance-coin:after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid rgba(205,192,255,.7);
+    border-radius: 50%;
+  }
+  .balance-coin span { position: relative; z-index: 1; transform: translateY(-.5px); }
+  .balance-value { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
   @media (max-width: 680px) {
-    .balance-pill { top: 62px; right: 12px; padding: 6px 8px; font-size: 12px; }
+    .balance-pill { right: 13px; bottom: 13px; padding: 6px 9px 6px 6px; gap: 6px; }
+    .balance-coin { width: 25px; height: 25px; }
+    .balance-value { font-size: 13px; }
   }
 `;
 document.head.appendChild(style);
@@ -80,9 +104,6 @@ const titleFix = () => {
   return true;
 };
 
-// React renders the menu after this module is imported. Observe only until the
-// initial DOM is ready, then disconnect permanently. A body-wide observer that
-// mutates the body on every callback can create a mutation loop and freeze the app.
 const bootInitialUi = () => {
   if (titleFix()) {
     syncBalanceUi();
@@ -167,8 +188,6 @@ proto.step = function (dt: number) {
     }
   }
 
-  // This is cheap and contains no DOM observer. It keeps visibility correct if
-  // the game mode changes outside the React button handlers.
   syncBalanceUi(this);
 };
 
