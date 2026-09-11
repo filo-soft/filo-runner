@@ -44,7 +44,6 @@ const sanitizeCoins = function () {
   const coins = (this.items as any[]).filter((item: any) => item.type === 'coin' || item.type === 'bonusCoin');
 
   for (const coin of coins) {
-    // High coin trails (for example above the stepped wall) are deliberately allowed.
     if (coin.mesh.position.y > 1.55) continue;
 
     const occupied = (lane: number) => obstacles.some((obstacle: any) =>
@@ -98,12 +97,15 @@ proto.spawn = function () {
     this.addItem(completedRow % 2 === 0 ? 'block' : 'pillar', lane, -111);
   }
 
-  // Rare triple obstacle: requires either a lane change, a jump, or a slide.
+  // High-intensity sequence: never stack all three hazards in one lane.
+  // Subway-Surfers-style patterns are readable chunks: the player should read a
+  // sequence of decisions, not a visually tangled vertical pile of objects.
   if (distance >= 8000 && completedRow >= 1 && completedRow % 11 === 0) {
-    const lane = (((completedRow * 2) % 3) - 1) as number;
-    this.addItem('block', lane, -106);
-    this.addItem('arch', lane, -99);
-    this.addItem('pillar', lane, -92);
+    const baseLane = (((completedRow * 2) % 3) - 1) as number;
+    const lanes = [baseLane, baseLane === 1 ? -1 : 1, baseLane === 0 ? -1 : 0];
+    this.addItem('block', lanes[0], -106);
+    this.addItem('arch', lanes[1], -99);
+    this.addItem('pillar', lanes[2], -92);
   }
 
   // Separate, rare walkable staircase ramp, not the existing launch ramp.
@@ -143,8 +145,6 @@ proto.step = function (dt: number) {
   }
 
   if ((this as any).__edgeBump) {
-    // The previous .045 world-unit kick was effectively invisible on a phone.
-    // Use a short, clearly readable impact pulse plus a tiny haptic cue.
     this.shake = Math.max(this.shake as number, .18);
     this.tone?.(150, .07, 75, 'triangle');
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(32);
