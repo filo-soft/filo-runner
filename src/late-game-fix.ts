@@ -68,6 +68,19 @@ const sanitizeCoins = function () {
   }
 };
 
+const replaceBlueCoin = function (coin: any) {
+  const lane = coin.lane as number;
+  const z = coin.mesh.position.z as number;
+  const y = coin.mesh.position.y as number;
+  this.recycle(coin);
+  const index = this.items.indexOf(coin);
+  if (index >= 0) this.items.splice(index, 1);
+  const bonus = this.addItem('bonusCoin', lane, z);
+  bonus.mesh.position.y = y;
+  bonus.laneX = lane * 2.2;
+  bonus.mesh.position.x = bonus.laneX + this.bendOff(z);
+};
+
 proto.buildPrototypes = function () {
   originalBuildPrototypes.call(this);
   ensureExtraRamp.call(this);
@@ -90,7 +103,18 @@ proto.supportAt = function (z: number) {
 proto.spawn = function () {
   const distance = this.stats.distance as number;
   const completedRow = (this.row as number) - 1;
+  const beforeItems = new Set((this.items as any[]));
   originalSpawn.call(this);
+
+  // At 16 km and beyond, the collectible trail switches entirely to orange
+  // bonus coins. Existing blue coins from this newly generated pattern are
+  // replaced in-place, so orange never stacks on top of blue.
+  if (distance >= 16000) {
+    const newBlueCoins = (this.items as any[]).filter((item: any) =>
+      !beforeItems.has(item) && item.type === 'coin'
+    );
+    for (const coin of newBlueCoins) replaceBlueCoin.call(this, coin);
+  }
 
   if (distance >= 9000 && completedRow >= 1 && completedRow % 3 === 0 && completedRow % 7 !== 0) {
     const lane = ((completedRow % 3) - 1) as number;
@@ -118,13 +142,21 @@ proto.spawn = function () {
     coin.mesh.position.y = 2.32;
   }
 
-  // From 10000 m, occasional orange coin at the end of a blue coin line.
-  if (distance >= 10000 && completedRow >= 1 && completedRow % 5 === 0 && completedRow % 7 !== 0) {
+  // From 10000 m, replace the final blue coin of the regular six-coin trail
+  // with one orange bonus coin. It occupies the exact same slot as the old
+  // last blue coin instead of being added on top of it.
+  if (distance >= 10000 && distance < 16000 && completedRow >= 1 && completedRow % 5 === 0 && completedRow % 7 !== 0) {
     const lane = (((completedRow + 1) % 3) - 1) as number;
-    const coin = this.addItem('bonusCoin', lane, -82);
-    coin.laneX = lane * 2.2;
-    coin.mesh.position.x = coin.laneX + this.bendOff(coin.mesh.position.z);
-    coin.mesh.position.y = .9;
+    const target = (this.items as any[]).find((item: any) =>
+      item.type === 'coin' && item.lane === lane && Math.abs(item.mesh.position.z - (-84)) < .35
+    );
+    if (target) replaceBlueCoin.call(this, target);
+    else {
+      const coin = this.addItem('bonusCoin', lane, -84);
+      coin.laneX = lane * 2.2;
+      coin.mesh.position.x = coin.laneX + this.bendOff(coin.mesh.position.z);
+      coin.mesh.position.y = .9;
+    }
   }
 
   sanitizeCoins.call(this);
