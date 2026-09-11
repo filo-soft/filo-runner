@@ -12,25 +12,15 @@ proto.buildPrototypes = function () {
   const temple = this.prototypes.get('sideTemple') as T.Group | undefined;
   if (!temple || temple.userData.roofRaised) return;
 
-  // Match the ordinary roadside columns exactly: the old sideTemple used
-  // short 3.7-unit columns, which made the roof hang into the mobile view.
-  // Rebuild those three column meshes as full roadside-height columns.
+  // Match the ordinary roadside columns exactly in height. The old sideTemple
+  // used 3.7-unit columns, which made its roof hang too low in the mobile view.
+  // makeColumn() builds the same column style used by the roadside scenery, so
+  // scaling its height to 6.6 keeps the same proportions/material/detail.
   for (let i = 1; i <= 3; i++) {
-    const oldColumn = temple.children[i];
-    if (!oldColumn) continue;
-    const x = oldColumn.position.x;
-    const z = oldColumn.position.z;
-    temple.remove(oldColumn);
-    oldColumn.traverse((child: T.Object3D) => {
-      const mesh = child as T.Mesh;
-      if (mesh.geometry) mesh.geometry.dispose();
-    });
-    const column = this.makeColumn(6.6);
-    column.position.set(x, .3, z);
-    temple.add(column);
+    const column = temple.children[i];
+    if (column) column.scale.y *= 6.6 / 3.7;
   }
 
-  // Put the entablature directly on the taller columns.
   const entablature = temple.children[4];
   const roof = temple.children[5];
   if (entablature) entablature.position.y = 6.95;
