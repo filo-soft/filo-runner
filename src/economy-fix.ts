@@ -17,7 +17,7 @@ const writeBalance = (value: number) => {
 
 const ensureBalanceUi = () => {
   const stage = document.querySelector('.stage');
-  if (!stage) return;
+  if (!stage) return false;
   let pill = stage.querySelector('.balance-pill') as HTMLElement | null;
   if (!pill) {
     pill = document.createElement('div');
@@ -26,7 +26,11 @@ const ensureBalanceUi = () => {
     stage.appendChild(pill);
   }
   const value = pill.querySelector('.balance-value');
-  if (value) value.textContent = String(readBalance());
+  if (value) {
+    const next = String(readBalance());
+    if (value.textContent !== next) value.textContent = next;
+  }
+  return true;
 };
 
 const style = document.createElement('style');
@@ -61,21 +65,34 @@ document.head.appendChild(style);
 
 const titleFix = () => {
   const title = document.querySelector('.intro h1') as HTMLElement | null;
-  if (!title) return;
+  if (!title) return false;
   const span = title.querySelector('span') as HTMLElement | null;
-  if (!span) return;
-  title.firstChild && (title.firstChild.nodeValue = 'Filo–');
-  span.textContent = 'Runner.';
+  if (!span) return false;
+  if (title.firstChild && title.firstChild.nodeValue !== 'Filo–') {
+    title.firstChild.nodeValue = 'Filo–';
+  }
+  if (span.textContent !== 'Runner.') span.textContent = 'Runner.';
+  return true;
 };
 
 let titleObserver: MutationObserver | undefined;
 const bootUiFixes = () => {
-  ensureBalanceUi();
-  titleFix();
-  if (!titleObserver) {
+  // The module can be evaluated before <body> exists in some browsers.
+  if (!document.body) return;
+
+  const stageReady = ensureBalanceUi();
+  const titleReady = titleFix();
+
+  // Watch only until the app's DOM has appeared. The previous observer watched
+  // every mutation and then caused its own DOM mutations, which could lock up
+  // the page in an endless MutationObserver loop.
+  if (!titleObserver && (!stageReady || !titleReady)) {
     titleObserver = new MutationObserver(() => {
-      ensureBalanceUi();
-      titleFix();
+      const ready = ensureBalanceUi() && titleFix();
+      if (ready) {
+        titleObserver?.disconnect();
+        titleObserver = undefined;
+      }
     });
     titleObserver.observe(document.body, { childList: true, subtree: true });
   }
