@@ -3,6 +3,9 @@ import { RunnerGame } from './game';
 const proto = RunnerGame.prototype as any;
 const originalStart = proto.start;
 const originalStep = proto.step;
+const originalMenu = proto.menu;
+const originalPause = proto.pause;
+const originalResume = proto.resume;
 
 const BALANCE_KEY = 'filo-balance';
 const readBalance = () => {
@@ -17,16 +20,26 @@ const writeBalance = (value: number) => {
 
 const ensureBalanceUi = () => {
   const stage = document.querySelector('.stage');
-  if (!stage) return;
+  if (!stage) return null;
   let pill = stage.querySelector('.balance-pill') as HTMLElement | null;
   if (!pill) {
     pill = document.createElement('div');
     pill.className = 'balance-pill';
-    pill.innerHTML = '<span class="balance-value">🪙 0</span>';
+    pill.innerHTML = '<span class="balance-value"></span>';
     stage.appendChild(pill);
   }
-  const value = pill.querySelector('.balance-value');
-  if (value) value.textContent = `🪙 ${readBalance()}`;
+  const value = pill.querySelector('.balance-value') as HTMLElement | null;
+  const text = `🪙 ${readBalance()}`;
+  if (value && value.textContent !== text) value.textContent = text;
+  return pill;
+};
+
+const syncBalanceUi = (game?: any) => {
+  const pill = ensureBalanceUi();
+  if (!pill) return;
+  const mode = game?.mode ?? (window as any).__runnerGame?.mode;
+  const visible = mode === 'menu' || mode === 'paused';
+  pill.classList.toggle('is-visible', visible);
 };
 
 const style = document.createElement('style');
@@ -59,30 +72,29 @@ document.head.appendChild(style);
 
 const titleFix = () => {
   const title = document.querySelector('.intro h1') as HTMLElement | null;
-  if (!title) return;
+  if (!title) return false;
   const span = title.querySelector('span') as HTMLElement | null;
-  if (!span) return;
-  title.firstChild && (title.firstChild.nodeValue = 'Filo–');
-  span.textContent = 'Runner.';
+  if (!span) return false;
+  if (title.firstChild?.nodeValue !== 'Filo–') title.firstChild && (title.firstChild.nodeValue = 'Filo–');
+  if (span.textContent !== 'Runner.') span.textContent = 'Runner.';
+  return true;
 };
 
-let titleObserver: MutationObserver | undefined;
-const bootUiFixes = () => {
-  ensureBalanceUi();
-  titleFix();
-  const pill = document.querySelector('.balance-pill') as HTMLElement | null;
-  if (pill) {
-    // Balance is a menu/pause element only. Never show it over active gameplay.
-    const mode = (window as any).__runnerGame?.mode;
-    pill.classList.toggle('is-visible', mode === 'menu' || mode === 'paused');
+// React renders the menu after this module is imported. Observe only until the
+// initial DOM is ready, then disconnect permanently. A body-wide observer that
+// mutates the body on every callback can create a mutation loop and freeze the app.
+const bootInitialUi = () => {
+  if (titleFix()) {
+    syncBalanceUi();
+    return;
   }
-  if (!titleObserver) {
-    titleObserver = new MutationObserver(() => {
-      ensureBalanceUi();
-      titleFix();
-    });
-    titleObserver.observe(document.body, { childList: true, subtree: true });
-  }
+  const observer = new MutationObserver(() => {
+    const ready = titleFix();
+    syncBalanceUi();
+    if (ready) observer.disconnect();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  window.setTimeout(() => observer.disconnect(), 5000);
 };
 
 const replaceCoinWithBonus = (game: any, coin: any) => {
@@ -103,7 +115,26 @@ proto.start = function () {
   originalStart.call(this);
   this.__balanceRunCoins = 0;
   (window as any).__runnerGame = this;
-  requestAnimationFrame(bootUiFixes);
+  syncBalanceUi(this);
+};
+
+proto.menu = function () {
+  const result = originalMenu.call(this);
+  (window as any).__runnerGame = this;
+  syncBalanceUi(this);
+  return result;
+};
+
+proto.pause = function () {
+  const result = originalPause.call(this);
+  syncBalanceUi(this);
+  return result;
+};
+
+proto.resume = function () {
+  const result = originalResume.call(this);
+  syncBalanceUi(this);
+  return result;
 };
 
 proto.step = function (dt: number) {
@@ -136,7 +167,9 @@ proto.step = function (dt: number) {
     }
   }
 
-  bootUiFixes();
+  // This is cheap and contains no DOM observer. It keeps visibility correct if
+  // the game mode changes outside the React button handlers.
+  syncBalanceUi(this);
 };
 
-bootUiFixes();
+bootInitialUi();
