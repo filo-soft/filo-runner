@@ -3,6 +3,7 @@ import { RunnerGame } from './game';
 
 const proto = RunnerGame.prototype as any;
 const originalBuildPrototypes = proto.buildPrototypes;
+const originalBuildWorld = proto.buildWorld;
 
 const makeLogoTexture = () => {
   const canvas = document.createElement('canvas');
@@ -15,8 +16,7 @@ const makeLogoTexture = () => {
   ctx.fillStyle = '#2457a6';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Geometric brand mark inspired by the current ЖЕЛЕЗНО identity: a compact
-  // square emblem followed by the wordmark, without the city name.
+  // Current ЖЕЛЕЗНО visual: blue field, light geometric emblem and wordmark.
   ctx.fillStyle = '#f2eee2';
   ctx.fillRect(46, 48, 224, 224);
   ctx.strokeStyle = '#2457a6';
@@ -39,40 +39,62 @@ const makeLogoTexture = () => {
   return texture;
 };
 
-const addBrandSign = (gate: T.Group) => {
-  if (gate.userData.zheleznoRoofSign) return;
-  const texture = makeLogoTexture();
-  if (!texture) return;
-
-  const sign = new T.Group();
-  sign.name = 'ZheleznoRoofSign';
-  // The runner passes beneath this exact gate, so keep the branding attached
-  // to its roof rather than to the distant sanctuary or side landmarks.
-  sign.position.set(0, 8.05, .22);
-  sign.rotation.set(0, 0, 0);
-  sign.scale.setScalar(.66);
-
+const makePanel = (texture: T.Texture, width: number, height: number, backingColor = '#ed8b2d') => {
+  const group = new T.Group();
   const backing = new T.Mesh(
-    new T.BoxGeometry(5.75, 1.62, .18),
-    new T.MeshStandardMaterial({ color: '#ed8b2d', roughness: .62 })
+    new T.BoxGeometry(width + .3, height + .3, .18),
+    new T.MeshStandardMaterial({ color: backingColor, roughness: .62 })
   );
   backing.castShadow = true;
   backing.receiveShadow = true;
-  sign.add(backing);
+  group.add(backing);
 
   const panel = new T.Mesh(
-    new T.PlaneGeometry(5.45, 1.42),
+    new T.PlaneGeometry(width, height),
     new T.MeshBasicMaterial({ map: texture, side: T.DoubleSide })
   );
+  // The camera approaches from +Z, so the +Z-facing panel is the visible side.
   panel.position.z = .105;
-  sign.add(panel);
+  group.add(panel);
+  return group;
+};
 
+const addGateLogo = (gate: T.Group, texture: T.Texture) => {
+  if (gate.userData.zheleznoRoofSign) return;
+  const sign = makePanel(texture, 5.35, 1.42);
+  sign.name = 'ZheleznoGateFacadeLogo';
+  // Put the logo on the front face of the pass-under gate, just under the roof,
+  // rather than on top of the roof where the camera cannot see it.
+  sign.position.set(0, 6.55, .97);
+  sign.scale.setScalar(.92);
   gate.add(sign);
   gate.userData.zheleznoRoofSign = true;
+};
+
+const addDistantTempleLogo = (temple: T.Group, texture: T.Texture) => {
+  if (temple.userData.zheleznoFacadeLogo) return;
+  const sign = makePanel(texture, 7.7, 1.55, '#ed8b2d');
+  sign.name = 'ZheleznoDistantTempleLogo';
+  // Front facade of the distant sanctuary: visible toward the runner/camera.
+  sign.position.set(0, 5.15, 3.6);
+  temple.add(sign);
+  temple.userData.zheleznoFacadeLogo = true;
 };
 
 proto.buildPrototypes = function () {
   originalBuildPrototypes.call(this);
   const gate = this.prototypes.get('gate') as T.Group | undefined;
-  if (gate) addBrandSign(gate);
+  if (!gate) return;
+  const texture = makeLogoTexture();
+  if (!texture) return;
+  addGateLogo(gate, texture);
+};
+
+proto.buildWorld = function () {
+  originalBuildWorld.call(this);
+  const temple = this.templeGroup as T.Group | undefined;
+  if (!temple) return;
+  const texture = makeLogoTexture();
+  if (!texture) return;
+  addDistantTempleLogo(temple, texture);
 };
