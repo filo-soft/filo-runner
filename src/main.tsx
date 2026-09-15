@@ -15,6 +15,8 @@ import "./chaser-fix";
 import "./ivan-style-fix";
 import "./ivan-back-fix";
 import "./ivan-position-fix";
+import "./ivan-final-fix";
+import "./cityscape-fix";
 import "./branding-fix";
 import App from "./App";
 
