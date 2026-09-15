@@ -10,66 +10,73 @@ const originalDie = proto.die;
 const makeIvan = function (game: any) {
   const root = new T.Group();
   root.name = 'IvanChaser';
-  root.scale.setScalar(1.38);
+  root.scale.setScalar(.82);
 
-  const body = new T.MeshStandardMaterial({ color: '#c7bba4', roughness: .92 });
-  const dark = new T.MeshStandardMaterial({ color: '#6f6657', roughness: .9 });
-  const helmet = new T.MeshStandardMaterial({ color: '#d68a2e', roughness: .72, metalness: .05 });
+  const blue = new T.MeshStandardMaterial({ color: '#2457a6', roughness: .72 });
+  const blueDark = new T.MeshStandardMaterial({ color: '#173d78', roughness: .8 });
+  const orange = new T.MeshStandardMaterial({ color: '#e88b2d', roughness: .65 });
   const skin = new T.MeshStandardMaterial({ color: '#c9a483', roughness: .94 });
-  const visor = new T.MeshStandardMaterial({ color: '#4d463d', roughness: .65, metalness: .05 });
+  const black = new T.MeshStandardMaterial({ color: '#252b33', roughness: .84 });
+  const white = new T.MeshStandardMaterial({ color: '#f2eee2', roughness: .72 });
 
-  const addBox = (parent: T.Object3D, x: number, y: number, z: number, sx: number, sy: number, sz: number, mat: T.Material) => {
-    const m = new T.Mesh(new T.BoxGeometry(sx, sy, sz), mat);
-    m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+  const addCapsule = (parent: T.Object3D, x: number, y: number, z: number, radius: number, length: number, mat: T.Material, rotX = 0, rotZ = 0) => {
+    const mesh = new T.Mesh(new T.CapsuleGeometry(radius, length, 6, 14), mat);
+    mesh.position.set(x, y, z); mesh.rotation.x = rotX; mesh.rotation.z = rotZ;
+    mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh); return mesh;
   };
   const addSphere = (parent: T.Object3D, x: number, y: number, z: number, sx: number, sy: number, sz: number, mat: T.Material) => {
-    const m = new T.Mesh(new T.SphereGeometry(1, 16, 12), mat);
-    m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+    const mesh = new T.Mesh(new T.SphereGeometry(1, 24, 16), mat);
+    mesh.position.set(x, y, z); mesh.scale.set(sx, sy, sz);
+    mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh); return mesh;
   };
 
-  const bodyGroup = new T.Group(); root.add(bodyGroup);
-  addBox(bodyGroup, 0, 1.03, 0, .56, .78, .38, body);
-  addBox(bodyGroup, 0, 1.42, .02, .48, .13, .34, dark);
+  const torso = new T.Group(); torso.name = 'IvanRoundedTorso'; root.add(torso);
+  addCapsule(torso, 0, 1.02, 0, .29, .48, blue);
+  addCapsule(torso, 0, 1.30, .015, .20, .15, blueDark);
+  addCapsule(torso, 0, .81, .01, .26, .14, orange);
 
-  const head = new T.Group(); head.position.y = 1.78; root.add(head);
-  addSphere(head, 0, 0, 0, .27, .31, .25, skin);
-  addSphere(head, 0, .18, 0, .31, .16, .29, helmet);
-  const brim = new T.Mesh(new T.CylinderGeometry(.37, .37, .075, 24), helmet);
-  brim.position.set(0, .095, .01); brim.castShadow = true; brim.receiveShadow = true; head.add(brim);
-  addBox(head, 0, .03, .24, .24, .08, .05, visor);
+  const head = new T.Group(); head.position.y = 1.76; root.add(head);
+  addSphere(head, 0, 0, 0, .26, .29, .24, skin);
+  const helmet = new T.Group(); helmet.name = 'IvanHelmet'; head.add(helmet);
+  addSphere(helmet, 0, .18, 0, .30, .16, .28, orange);
+  const brim = new T.Mesh(new T.CylinderGeometry(.34, .34, .065, 32), orange);
+  brim.position.set(0, .105, .02); brim.castShadow = true; brim.receiveShadow = true; helmet.add(brim);
+  addCapsule(helmet, 0, .19, -.10, .10, .16, blueDark);
+  addCapsule(helmet, 0, .04, .23, .09, .07, black, Math.PI / 2);
+  const lamp = new T.Mesh(new T.CylinderGeometry(.045, .045, .022, 16), white);
+  lamp.rotation.x = Math.PI / 2; lamp.position.set(0, .19, .29); helmet.add(lamp);
 
   const makeLeg = (x: number) => {
-    const upper = new T.Group(); upper.position.set(x, .73, 0); root.add(upper);
-    addBox(upper, 0, -.31, 0, .16, .58, .17, dark);
-    const lower = new T.Group(); lower.position.set(0, -.58, 0); upper.add(lower);
-    addBox(lower, 0, -.27, 0, .14, .5, .15, dark);
-    addBox(lower, 0, -.53, .11, .2, .09, .34, helmet);
-    return upper;
+    const leg = new T.Group(); leg.position.set(x, .66, 0); root.add(leg);
+    addCapsule(leg, 0, -.30, 0, .105, .42, blueDark);
+    const shoe = addCapsule(leg, 0, -.68, .075, .10, .18, black, Math.PI / 2); shoe.scale.z = 1.45;
+    return leg;
   };
   const makeArm = (x: number) => {
-    const upper = new T.Group(); upper.position.set(x, 1.38, 0); root.add(upper);
-    addBox(upper, 0, -.22, 0, .13, .43, .14, body);
-    const lower = new T.Group(); lower.position.set(0, -.43, 0); upper.add(lower);
-    addBox(lower, 0, -.2, 0, .11, .38, .12, skin);
-    return upper;
+    const arm = new T.Group(); arm.position.set(x, 1.34, 0); root.add(arm);
+    addCapsule(arm, 0, -.22, 0, .085, .34, blue);
+    addCapsule(arm, 0, -.48, .01, .072, .24, skin);
+    return arm;
   };
 
   root.userData.leftLeg = makeLeg(-.17);
   root.userData.rightLeg = makeLeg(.17);
-  root.userData.leftArm = makeArm(-.39);
-  root.userData.rightArm = makeArm(.39);
+  root.userData.leftArm = makeArm(-.37);
+  root.userData.rightArm = makeArm(.37);
   root.traverse((object: T.Object3D) => { const mesh = object as T.Mesh; if (mesh.isMesh) mesh.frustumCulled = false; });
-  root.visible = false; root.position.y = 0; game.scene.add(root); return root;
+  root.visible = false;
+  game.scene.add(root);
+  return root;
 };
 
 const animateIvan = function (model: T.Group, t: number) {
-  const stride = Math.sin(t * 13.5), opposite = Math.sin(t * 13.5 + Math.PI), data = model.userData;
-  (data.leftLeg as T.Group).rotation.x = stride * .72;
-  (data.rightLeg as T.Group).rotation.x = opposite * .72;
-  (data.leftArm as T.Group).rotation.x = opposite * .62;
-  (data.rightArm as T.Group).rotation.x = stride * .62;
-  model.rotation.z = Math.sin(t * 4.5) * .025;
-  model.position.y = Math.abs(Math.sin(t * 13.5)) * .035;
+  const stride = Math.sin(t * 11.5), opposite = Math.sin(t * 11.5 + Math.PI), data = model.userData;
+  (data.leftLeg as T.Group).rotation.x = stride * .52;
+  (data.rightLeg as T.Group).rotation.x = opposite * .52;
+  (data.leftArm as T.Group).rotation.x = opposite * .42;
+  (data.rightArm as T.Group).rotation.x = stride * .42;
+  model.rotation.z = Math.sin(t * 4.2) * .018;
+  model.position.y = Math.abs(Math.sin(t * 11.5)) * .025;
 };
 
 const startIvanScene = function (impact = false) {
@@ -80,7 +87,7 @@ const startIvanScene = function (impact = false) {
   this.__ivanChase = impact;
   model.visible = true;
   model.position.x = this.runner.position.x;
-  model.position.z = impact ? 3.05 : 3.15;
+  model.position.z = impact ? 4.55 : 3.15;
   model.position.y = 0;
   model.rotation.set(0, 0, 0);
   if (impact) {
@@ -133,18 +140,13 @@ proto.step = function (dt: number) {
     return;
   }
 
-  if (edgeImpact && !this.__ivanLifeLost) {
-    this.__ivanLifeLost = true;
-    startIvanScene.call(this, true);
-  }
+  if (edgeImpact && !this.__ivanLifeLost) { this.__ivanLifeLost = true; startIvanScene.call(this, true); }
 
   if (!this.__ivanChase) {
-    // Keep Ivan in the camera's useful depth range instead of drifting toward
-    // the camera, where the desktop perspective cuts off the lower body.
-    const opening = Math.min(1, (this.stats.time as number) / 12);
-    const idleDistance = T.MathUtils.lerp(3.15, 3.8, opening);
-    const idleTargetZ = idleDistance + Math.sin((this.stats.time as number) * 1.5) * .10;
-    model.position.z = T.MathUtils.damp(model.position.z, idleTargetZ, 8, dt);
+    const opening = Math.min(1, (this.stats.time as number) / 15);
+    const idleDistance = T.MathUtils.lerp(3.15, 4.4, opening);
+    const idleTargetZ = idleDistance + Math.sin((this.stats.time as number) * 1.35) * .10;
+    model.position.z = T.MathUtils.damp(model.position.z, idleTargetZ, 7, dt);
     model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 8, dt);
     model.visible = true;
     animateIvan(model, this.stats.time as number);
@@ -160,14 +162,15 @@ proto.step = function (dt: number) {
   this.runner.position.z = targetRunnerZ;
 
   const ivanTargetZ = t < 1.25
-    ? T.MathUtils.lerp(3.05, 2.5, T.MathUtils.smoothstep(t / 1.25, 0, 1))
-    : T.MathUtils.lerp(2.5, 3.8, T.MathUtils.smoothstep(Math.min(1, (t - 1.25) / 2.8), 0, 1));
+    ? T.MathUtils.lerp(4.55, 3.55, T.MathUtils.smoothstep(t / 1.25, 0, 1))
+    : T.MathUtils.lerp(3.55, 4.4, T.MathUtils.smoothstep(Math.min(1, (t - 1.25) / 2.8), 0, 1));
   model.position.z = T.MathUtils.damp(model.position.z, ivanTargetZ, 8, dt);
-  model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 12, dt);
-  model.visible = true; animateIvan(model, t);
+  model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 11, dt);
+  model.visible = true;
+  animateIvan(model, t);
 
   if (t >= 5.1) {
-    model.position.z = 3.8;
+    model.position.z = 4.4;
     this.__ivanChase = false;
     this.__ivanSceneTime = 0;
     this.runner.position.z = 1.2;
