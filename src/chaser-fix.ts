@@ -17,11 +17,12 @@ const makeIvan = function (game: any) {
   const orange = new T.MeshStandardMaterial({ color: '#e88b2d', roughness: .65 });
   const skin = new T.MeshStandardMaterial({ color: '#c9a483', roughness: .94 });
   const black = new T.MeshStandardMaterial({ color: '#252b33', roughness: .84 });
-  const white = new T.MeshStandardMaterial({ color: '#f2eee2', roughness: .72 });
+  const white = new T.MeshStandardMaterial({ color: '#f2eee0', roughness: .72 });
 
   const addCapsule = (parent: T.Object3D, x: number, y: number, z: number, radius: number, length: number, mat: T.Material, rotX = 0, rotZ = 0) => {
     const mesh = new T.Mesh(new T.CapsuleGeometry(radius, length, 6, 14), mat);
-    mesh.position.set(x, y, z); mesh.rotation.x = rotX; mesh.rotation.z = rotZ;
+    mesh.position.set(x, y, z);
+    mesh.rotation.x = rotX; mesh.rotation.z = rotZ;
     mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh); return mesh;
   };
   const addSphere = (parent: T.Object3D, x: number, y: number, z: number, sx: number, sy: number, sz: number, mat: T.Material) => {
@@ -87,7 +88,8 @@ const startIvanScene = function (impact = false) {
   this.__ivanChase = impact;
   model.visible = true;
   model.position.x = this.runner.position.x;
-  model.position.z = impact ? -0.1 : -3.4;
+  // Negative Z is farther down the track than the philosopher. Ivan always approaches from behind.
+  model.position.z = impact ? -4.35 : -4.1;
   model.position.y = 0;
   model.rotation.set(0, 0, 0);
   if (impact) {
@@ -124,7 +126,7 @@ proto.start = function () {
   this.__ivanEdgeImpact = false;
   this.runner.position.z = 1.2;
   const model = this.__ivanModel as T.Group | undefined;
-  if (model) { model.visible = true; model.position.set(this.runner.position.x, 0, -3.4); model.rotation.set(0, 0, 0); }
+  if (model) { model.visible = true; model.position.set(this.runner.position.x, 0, -4.1); model.rotation.set(0, 0, 0); }
 };
 
 proto.step = function (dt: number) {
@@ -143,11 +145,10 @@ proto.step = function (dt: number) {
   if (edgeImpact && !this.__ivanLifeLost) { this.__ivanLifeLost = true; startIvanScene.call(this, true); }
 
   if (!this.__ivanChase) {
-    // Negative Z is behind the philosopher, farther down the track.
     const opening = Math.min(1, (this.stats.time as number) / 12);
-    const idleDistance = T.MathUtils.lerp(-3.4, -4.8, opening);
+    const idleDistance = T.MathUtils.lerp(-4.1, -5.2, opening);
     const idleTargetZ = idleDistance + Math.sin((this.stats.time as number) * 1.35) * .08;
-    model.position.z = T.MathUtils.damp(model.position.z, idleTargetZ, 6, dt);
+    model.position.z = T.MathUtils.damp(model.position.z, idleTargetZ, 5, dt);
     model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 8, dt);
     model.visible = true;
     animateIvan(model, this.stats.time as number);
@@ -156,22 +157,24 @@ proto.step = function (dt: number) {
 
   this.__ivanSceneTime += dt;
   const t = this.__ivanSceneTime as number;
+
   let targetRunnerZ = .28;
   if (t < .8) targetRunnerZ = T.MathUtils.lerp(1.2, .22, T.MathUtils.smoothstep(t / .8, 0, 1));
   else if (t < 2.45) targetRunnerZ = T.MathUtils.lerp(.22, 1.2, T.MathUtils.smoothstep((t - .8) / 1.65, 0, 1));
   else targetRunnerZ = 1.2;
   this.runner.position.z = targetRunnerZ;
 
-  const ivanTargetZ = t < 1.25
-    ? T.MathUtils.lerp(-0.1, .15, T.MathUtils.smoothstep(t / 1.25, 0, 1))
-    : T.MathUtils.lerp(.15, -4.0, T.MathUtils.smoothstep(Math.min(1, (t - 1.25) / 2.8), 0, 1));
-  model.position.z = T.MathUtils.damp(model.position.z, ivanTargetZ, 7, dt);
+  // Surge from several meters behind, stop just behind the philosopher, then retreat again.
+  const ivanTargetZ = t < 1.65
+    ? T.MathUtils.lerp(-4.35, .52, T.MathUtils.smoothstep(t / 1.65, 0, 1))
+    : T.MathUtils.lerp(.52, -4.4, T.MathUtils.smoothstep(Math.min(1, (t - 1.65) / 3.0), 0, 1));
+  model.position.z = T.MathUtils.damp(model.position.z, ivanTargetZ, 5.5, dt);
   model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 11, dt);
   model.visible = true;
   animateIvan(model, t);
 
-  if (t >= 5.1) {
-    model.position.z = -4.0;
+  if (t >= 5.0) {
+    model.position.z = -4.4;
     this.__ivanChase = false;
     this.__ivanSceneTime = 0;
     this.runner.position.z = 1.2;
