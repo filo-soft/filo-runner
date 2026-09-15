@@ -1,18 +1,25 @@
 import * as T from 'three';
+import logoSvg from './assets/branding/logo железно.svg?url';
 import { RunnerGame } from './game';
 
 const proto = RunnerGame.prototype as any;
 const originalBuildWorld = proto.buildWorld;
 
+const logoTexture = (() => {
+  const texture = new T.Texture();
+  texture.colorSpace = T.SRGBColorSpace;
+  texture.anisotropy = 4;
+  const image = new Image();
+  image.onload = () => { texture.image = image; texture.needsUpdate = true; };
+  image.src = logoSvg;
+  return texture;
+})();
+
 const cityMaterials = {
-  light: new T.MeshStandardMaterial({ color: '#d9d0c4', roughness: .9 }),
-  warm: new T.MeshStandardMaterial({ color: '#b79b7b', roughness: .88 }),
-  dark: new T.MeshStandardMaterial({ color: '#4a4b4c', roughness: .9 }),
-  wood: new T.MeshStandardMaterial({ color: '#8e6848', roughness: .88 }),
-  accent: new T.MeshStandardMaterial({ color: '#c7783c', roughness: .8 }),
-  glass: new T.MeshStandardMaterial({ color: '#5c7890', roughness: .24, metalness: .16 }),
-  pavement: new T.MeshStandardMaterial({ color: '#948d82', roughness: 1 }),
-  grass: new T.MeshStandardMaterial({ color: '#73815c', roughness: 1 }),
+  light: new T.MeshStandardMaterial({ color: '#d9d0c4', roughness: .9 }), warm: new T.MeshStandardMaterial({ color: '#b79b7b', roughness: .88 }),
+  dark: new T.MeshStandardMaterial({ color: '#4a4b4c', roughness: .9 }), wood: new T.MeshStandardMaterial({ color: '#8e6848', roughness: .88 }),
+  accent: new T.MeshStandardMaterial({ color: '#c7783c', roughness: .8 }), glass: new T.MeshStandardMaterial({ color: '#5c7890', roughness: .24, metalness: .16 }),
+  pavement: new T.MeshStandardMaterial({ color: '#948d82', roughness: 1 }), grass: new T.MeshStandardMaterial({ color: '#73815c', roughness: 1 }),
   water: new T.MeshStandardMaterial({ color: '#7296a8', roughness: .18, metalness: .08 })
 };
 
@@ -20,18 +27,24 @@ const addBox = (g: T.Group, geo: T.BoxGeometry, mat: T.Material, x: number, y: n
   const m = new T.Mesh(geo, mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
 };
 
+const addSideLogo = (g: T.Group, side: 1 | -1, w: number, h: number) => {
+  const sign = new T.Group(); sign.name = 'ZheleznoResidentialLogo';
+  const backing = new T.Mesh(new T.BoxGeometry(.12, 1.7, 3.9), new T.MeshStandardMaterial({ color: '#2457a6', roughness: .7 }));
+  backing.castShadow = true; backing.receiveShadow = true; sign.add(backing);
+  const panel = new T.Mesh(new T.PlaneGeometry(3.72, 1.52), new T.MeshBasicMaterial({ map: logoTexture, transparent: true, side: T.DoubleSide, depthWrite: false }));
+  panel.rotation.y = Math.PI / 2; panel.position.x = side * .071; sign.add(panel);
+  sign.position.set(side * (w / 2 + .075), h * .56, 0);
+  g.add(sign);
+};
+
 const addTree = (g: T.Group, x: number, z: number, s: number) => {
   addBox(g, new T.BoxGeometry(.16, 1.2, .16), cityMaterials.wood, x, .6, z, s, s, s);
   const crown = new T.Mesh(new T.IcosahedronGeometry(.7, 1), cityMaterials.grass); crown.position.set(x, 1.45 * s, z); crown.scale.setScalar(s); crown.castShadow = true; g.add(crown);
 };
 
-const makeApartment = (variant: number) => {
+const makeApartment = (variant: number, side: 1 | -1) => {
   const g = new T.Group();
-  const w = variant % 2 ? 7.8 : 8.8;
-  const d = variant % 3 === 0 ? 6.6 : 7.4;
-  const floors = 7;
-  const floorH = 1.18;
-  const h = floors * floorH;
+  const w = variant % 2 ? 7.8 : 8.8; const d = variant % 3 === 0 ? 6.6 : 7.4; const floors = 7; const floorH = 1.18; const h = floors * floorH;
   const body = variant % 3 === 0 ? cityMaterials.light : variant % 3 === 1 ? cityMaterials.dark : cityMaterials.warm;
   addBox(g, new T.BoxGeometry(1,1,1), body, 0, h / 2, 0, w, h, d);
   const coreX = variant % 2 ? -w * .2 : w * .18;
@@ -42,22 +55,13 @@ const makeApartment = (variant: number) => {
   const windowGeo = new T.BoxGeometry(.56, .5, .05);
   for (let floor = 0; floor < floors; floor++) {
     const y = .55 + floor * floorH;
-    for (let col = 0; col < 5; col++) {
-      const x = -w * .36 + col * w * .18;
-      if (Math.abs(x - coreX) < w * .1) continue;
-      addBox(g, windowGeo, cityMaterials.glass, x, y, d / 2 + .055, 1, 1, 1);
-    }
+    for (let col = 0; col < 5; col++) { const x = -w * .36 + col * w * .18; if (Math.abs(x - coreX) < w * .1) continue; addBox(g, windowGeo, cityMaterials.glass, x, y, d / 2 + .055, 1, 1, 1); }
     if ((floor + variant) % 2 === 0) addBox(g, new T.BoxGeometry(1,1,1), cityMaterials.wood, -w * .18, y - .12, d / 2 + .1, w * .16, .08, .45);
   }
-  for (let floor = 0; floor < floors; floor++) {
-    const y = .55 + floor * floorH;
-    for (let col = 0; col < 3; col++) {
-      const x = -w * .3 + col * w * .3;
-      addBox(g, windowGeo, cityMaterials.glass, x, y, -d / 2 - .055, 1, 1, 1);
-    }
-  }
+  for (let floor = 0; floor < floors; floor++) { const y = .55 + floor * floorH; for (let col = 0; col < 3; col++) { const x = -w * .3 + col * w * .3; addBox(g, windowGeo, cityMaterials.glass, x, y, -d / 2 - .055, 1, 1, 1); } }
   addBox(g, new T.BoxGeometry(1,1,1), cityMaterials.dark, 0, .12, d / 2 + .08, w * .82, .24, .12);
   addBox(g, new T.BoxGeometry(1,1,1), cityMaterials.dark, 0, h + .12, 0, w * 1.02, .22, d * 1.02);
+  addSideLogo(g, side, w, h);
   return g;
 };
 
@@ -75,55 +79,25 @@ const makePlaza = () => {
 
 const populateCity = (game: any) => {
   if (game.__cityBlocks) return;
-  const blocks: T.Group[] = [];
-  const plazas: T.Group[] = [];
-  const specs = [
-    [-12.5, -22, 0], [12.8, -31, 1], [-13.4, -44, 2], [13.5, -55, 3],
-    [-12.2, -68, 4], [13.2, -79, 5], [-13.5, -91, 1], [12.6, -104, 2],
-    [-13.0, -118, 3], [13.5, -131, 4], [-12.8, -144, 5], [13.2, -157, 0]
-  ];
+  const blocks: T.Group[] = []; const plazas: T.Group[] = [];
+  const specs = [[-12.5, -22, 0], [12.8, -31, 1], [-13.4, -44, 2], [13.5, -55, 3], [-12.2, -68, 4], [13.2, -79, 5], [-13.5, -91, 1], [12.6, -104, 2], [-13.0, -118, 3], [13.5, -131, 4], [-12.8, -144, 5], [13.2, -157, 0]];
   for (const [x, z, variant] of specs) {
-    const b = makeApartment(variant as number); b.position.set(x as number, 0, z as number); b.userData.baseX = x; b.userData.baseZ = z; blocks.push(b); game.scene.add(b);
+    const side: 1 | -1 = (x as number) > 0 ? -1 : 1;
+    const b = makeApartment(variant as number, side); b.position.set(x as number, 0, z as number); b.userData.baseX = x; b.userData.baseZ = z; blocks.push(b); game.scene.add(b);
   }
   const plazaSpecs = [[-12.5, -61], [12.7, -116], [-12.5, -170]];
-  for (const [x, z] of plazaSpecs) {
-    const p = makePlaza(); p.position.set(x, 0, z); p.userData.baseX = x; p.userData.baseZ = z; plazas.push(p); game.scene.add(p);
-  }
-  game.__cityBlocks = blocks;
-  game.__cityPlazas = plazas;
+  for (const [x, z] of plazaSpecs) { const p = makePlaza(); p.position.set(x, 0, z); p.userData.baseX = x; p.userData.baseZ = z; plazas.push(p); game.scene.add(p); }
+  game.__cityBlocks = blocks; game.__cityPlazas = plazas;
 };
 
-proto.buildWorld = function () {
-  originalBuildWorld.call(this);
-  populateCity(this);
-};
-
+proto.buildWorld = function () { originalBuildWorld.call(this); populateCity(this); };
 const originalStart = proto.start;
-proto.start = function () {
-  originalStart.call(this);
-  for (const b of (this.__cityBlocks || []) as T.Group[]) b.visible = true;
-  for (const p of (this.__cityPlazas || []) as T.Group[]) p.visible = true;
-};
-
+proto.start = function () { originalStart.call(this); for (const b of (this.__cityBlocks || []) as T.Group[]) b.visible = true; for (const p of (this.__cityPlazas || []) as T.Group[]) p.visible = true; };
 const updateCity = (game: any) => {
   if (!game.__cityBlocks) return;
   const wrap = (baseZ: number, travel: number) => ((baseZ + travel + 170) % 170) - 150;
-  for (const b of game.__cityBlocks as T.Group[]) {
-    const z = wrap(Number(b.userData.baseZ), Number(game.travel || 0));
-    b.position.z = z;
-    b.position.x = Number(b.userData.baseX) + (typeof game.bendOff === 'function' ? game.bendOff(z) : 0);
-    b.visible = z < 8 && z > -150;
-  }
-  for (const p of (game.__cityPlazas || []) as T.Group[]) {
-    const z = wrap(Number(p.userData.baseZ), Number(game.travel || 0));
-    p.position.z = z;
-    p.position.x = Number(p.userData.baseX) + (typeof game.bendOff === 'function' ? game.bendOff(z) : 0);
-    p.visible = z < 8 && z > -150;
-  }
+  for (const b of game.__cityBlocks as T.Group[]) { const z = wrap(Number(b.userData.baseZ), Number(game.travel || 0)); b.position.z = z; b.position.x = Number(b.userData.baseX) + (typeof game.bendOff === 'function' ? game.bendOff(z) : 0); b.visible = z < 8 && z > -150; }
+  for (const p of (game.__cityPlazas || []) as T.Group[]) { const z = wrap(Number(p.userData.baseZ), Number(game.travel || 0)); p.position.z = z; p.position.x = Number(p.userData.baseX) + (typeof game.bendOff === 'function' ? game.bendOff(z) : 0); p.visible = z < 8 && z > -150; }
 };
-
 const originalStep = proto.step;
-proto.step = function (dt: number) {
-  originalStep.call(this, dt);
-  updateCity(this);
-};
+proto.step = function (dt: number) { originalStep.call(this, dt); updateCity(this); };
