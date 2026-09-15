@@ -140,7 +140,7 @@ const smashIvanObstacle = function (game: any, item: any) {
   return true;
 };
 
-const updateIvanDebris = function (game: any, dt: number) => {
+const updateIvanDebris = function (game: any, dt: number) {
   const fragments = (game.__ivanDebris || []) as any[];
   for (let i = fragments.length - 1; i >= 0; i--) {
     const p = fragments[i];
