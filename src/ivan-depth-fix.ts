@@ -5,13 +5,14 @@ const proto = RunnerGame.prototype as any;
 const originalStart = proto.start;
 const originalStep = proto.step;
 
-const IVAN_BACK_Z = -4.8;
-const IVAN_CLOSE_Z = -2.9;
-const IVAN_SAFE_FRONT_LIMIT = -2.55;
+// Camera is on positive Z; more negative means farther down the track.
+// These values intentionally leave a large visual gap so perspective cannot make Ivan appear ahead.
+const IVAN_BACK_Z = -8.5;
+const IVAN_CLOSE_Z = -7.0;
+const IVAN_FRONT_LIMIT = -6.4;
 const IVAN_INTRO = 4.5;
 
 const enforceDepth = (game: any, model: T.Group) => {
-  const time = Number(game.stats?.time || 0);
   const intro = Number(game.__ivanIntroTime || 0) < IVAN_INTRO;
   const chase = !!game.__ivanChase;
   const active = game.mode === 'playing' && (intro || chase);
@@ -19,15 +20,13 @@ const enforceDepth = (game: any, model: T.Group) => {
   model.visible = active;
   if (!active) return;
 
-  const target = chase ? IVAN_CLOSE_Z : IVAN_BACK_Z;
-  const z = T.MathUtils.damp(model.position.z, target, 16, 1 / 60);
-  // This is the hard rule: Ivan can never cross the philosopher's depth.
-  model.position.z = Math.min(z, IVAN_SAFE_FRONT_LIMIT);
+  // Hard assignment, not damping: no earlier wrapper can animate Ivan forward.
+  model.position.z = chase ? IVAN_CLOSE_Z : IVAN_BACK_Z;
+  if (model.position.z > IVAN_FRONT_LIMIT) model.position.z = IVAN_FRONT_LIMIT;
   model.position.x = game.runner.position.x;
 
-  // Follow the same surface height as the philosopher, including the stepped platforms.
   const ground = Number.isFinite(game.groundY) ? Number(game.groundY) : 0;
-  model.position.y = T.MathUtils.damp(model.position.y, ground, 18, 1 / 60);
+  model.position.y = ground;
 };
 
 proto.start = function () {
