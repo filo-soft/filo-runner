@@ -7,9 +7,10 @@ const originalStart = proto.start;
 const originalStep = proto.step;
 const originalDie = proto.die;
 
-const IVAN_BACK_Z = 5.6;
-const IVAN_CLOSE_Z = 2.8;
-const IVAN_MIN_Z = 2.65;
+// Ivan must always live behind the philosopher (camera is on positive Z).
+const IVAN_BACK_Z = -7.5;
+const IVAN_CLOSE_Z = -6.0;
+const IVAN_MIN_Z = -5.6;
 const IVAN_INTRO_TIME = 4.5;
 const IVAN_CRASH_TIME = 4.0;
 
@@ -20,7 +21,8 @@ const makeIvan = function (game: any) {
 
   const blue = new T.MeshStandardMaterial({ color: '#2457a6', roughness: .72 });
   const blueDark = new T.MeshStandardMaterial({ color: '#173d78', roughness: .8 });
-  const orange = new T.MeshStandardMaterial({ color: '#e88b2d', roughness: .65 });
+  const orange = new T.MeshStandardMaterial({ color: '#e97816', roughness: .58, metalness: .02 });
+  const orangeDark = new T.MeshStandardMaterial({ color: '#b84f08', roughness: .7, metalness: .02 });
   const skin = new T.MeshStandardMaterial({ color: '#c9a483', roughness: .94 });
   const black = new T.MeshStandardMaterial({ color: '#252b33', roughness: .84 });
 
@@ -42,12 +44,20 @@ const makeIvan = function (game: any) {
 
   const head = new T.Group(); head.position.y = 1.76; root.add(head);
   addSphere(head, 0, 0, 0, .26, .29, .24, skin);
+
   const helmet = new T.Group(); helmet.name = 'IvanHelmet'; head.add(helmet);
-  addSphere(helmet, 0, .18, 0, .30, .16, .28, orange);
-  const brim = new T.Mesh(new T.CylinderGeometry(.34, .34, .065, 32), orange);
-  brim.position.set(0, .105, .02); brim.castShadow = true; brim.receiveShadow = true; helmet.add(brim);
-  addCapsule(helmet, 0, .19, -.10, .10, .16, blueDark);
-  addCapsule(helmet, 0, .04, .23, .09, .07, black, Math.PI / 2);
+  // Proper construction hard hat: pronounced dome + crown band + wide front/rear brim.
+  addSphere(helmet, 0, .18, 0, .305, .205, .29, orange);
+  const crownBand = new T.Mesh(new T.CylinderGeometry(.265, .285, .075, 32), orangeDark);
+  crownBand.position.set(0, .10, 0); crownBand.castShadow = true; crownBand.receiveShadow = true; helmet.add(crownBand);
+  const brim = new T.Mesh(new T.CylinderGeometry(.365, .365, .055, 40), orange);
+  brim.scale.z = 1.28;
+  brim.position.set(0, .075, .035); brim.castShadow = true; brim.receiveShadow = true; helmet.add(brim);
+  const frontPeak = new T.Mesh(new T.BoxGeometry(.46, .045, .20), orange);
+  frontPeak.position.set(0, .075, .235); frontPeak.rotation.x = -.08; frontPeak.castShadow = true; frontPeak.receiveShadow = true; helmet.add(frontPeak);
+  // Small rear rim gives the hard hat a distinct industrial silhouette.
+  const rearRim = new T.Mesh(new T.BoxGeometry(.34, .05, .12), orangeDark);
+  rearRim.position.set(0, .075, -.23); rearRim.castShadow = true; rearRim.receiveShadow = true; helmet.add(rearRim);
   // No white lamp/circle on the helmet.
 
   const makeLeg = (x: number) => {
@@ -96,7 +106,6 @@ const getObstacleMaterial = (item: any) => {
 };
 
 const smashIvanObstacle = function (game: any, item: any) {
-  // Ivan only smashes small gameplay obstacles. Temples, arches, gates and the stepped wall are structures, not smash targets.
   if (!item || item.mesh?.userData?.ivanSmashed || (item.type !== 'block' && item.type !== 'pillar')) return false;
   item.mesh.userData.ivanSmashed = true;
 
@@ -122,12 +131,7 @@ const smashIvanObstacle = function (game: any, item: any) {
     piece.rotation.set(Math.random() * .8, Math.random() * .8, Math.random() * .8);
     piece.castShadow = true; piece.receiveShadow = true;
     game.scene.add(piece);
-    fragments.push({
-      mesh: piece,
-      velocity: new T.Vector3((Math.random() - .5) * 5.5, Math.random() * 3.6 + .8, (Math.random() - .5) * 5),
-      spin: new T.Vector3((Math.random() - .5) * 7, (Math.random() - .5) * 7, (Math.random() - .5) * 7),
-      life: .72 + Math.random() * .45
-    });
+    fragments.push({ mesh: piece, velocity: new T.Vector3((Math.random() - .5) * 5.5, Math.random() * 3.6 + .8, (Math.random() - .5) * 5), spin: new T.Vector3((Math.random() - .5) * 7, (Math.random() - .5) * 7, (Math.random() - .5) * 7), life: .72 + Math.random() * .45 });
   }
 
   game.burst?.(center, false, 10);
@@ -136,7 +140,7 @@ const smashIvanObstacle = function (game: any, item: any) {
   return true;
 };
 
-const updateIvanDebris = function (game: any, dt: number) {
+const updateIvanDebris = function (game: any, dt: number) => {
   const fragments = (game.__ivanDebris || []) as any[];
   for (let i = fragments.length - 1; i >= 0; i--) {
     const p = fragments[i];
@@ -207,7 +211,6 @@ proto.buildWorld = function () {
 
 proto.die = function () {
   if (this.mode !== 'playing') return originalDie.call(this);
-  // First hit: show the pursuer for a short recovery scene, just like a chase reset.
   if (!this.__ivanLifeLost) {
     this.__ivanLifeLost = true;
     startIvanScene.call(this);
@@ -264,7 +267,6 @@ proto.step = function (dt: number) {
     return;
   }
 
-  // Ivan is visible only for the opening seconds. After that he stays gone until a collision.
   if ((this.__ivanIntroTime as number) < IVAN_INTRO_TIME) {
     this.__ivanIntroTime += dt;
     model.position.z = T.MathUtils.damp(model.position.z, IVAN_BACK_Z, 8, dt);
