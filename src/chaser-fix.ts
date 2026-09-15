@@ -1,5 +1,4 @@
 import * as T from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RunnerGame } from './game';
 
 const proto = RunnerGame.prototype as any;
@@ -8,192 +7,163 @@ const originalStart = proto.start;
 const originalStep = proto.step;
 const originalDie = proto.die;
 
-const IVAN_MODEL_URL = `${import.meta.env.BASE_URL}ivan/ivan1.glb`;
-const IVAN_RUN_URL = `${import.meta.env.BASE_URL}ivan/Slow%20Run1.glb`;
+const makeIvan = function (game: any) {
+  const root = new T.Group();
+  root.name = 'IvanChaser';
 
-const findClip = (clips: T.AnimationClip[]) =>
-  clips.find((clip) => /run|jog|sprint|walk/i.test(clip.name)) ?? clips[0];
+  const body = new T.MeshStandardMaterial({ color: '#c7bba4', roughness: .92 });
+  const dark = new T.MeshStandardMaterial({ color: '#6f6657', roughness: .9 });
+  const helmet = new T.MeshStandardMaterial({ color: '#d68a2e', roughness: .72, metalness: .05 });
+  const skin = new T.MeshStandardMaterial({ color: '#c9a483', roughness: .94 });
+  const visor = new T.MeshStandardMaterial({ color: '#4d463d', roughness: .65, metalness: .05 });
 
-const addIvanName = (root: T.Object3D) => {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 144;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.font = '900 92px Arial Black, Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#f4eee0';
-  ctx.strokeStyle = '#463d32';
-  ctx.lineWidth = 12;
-  ctx.strokeText('ИВАН', 256, 72);
-  ctx.fillText('ИВАН', 256, 72);
+  const addBox = (parent: T.Object3D, x: number, y: number, z: number, sx: number, sy: number, sz: number, mat: T.Material) => {
+    const m = new T.Mesh(new T.BoxGeometry(sx, sy, sz), mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    parent.add(m);
+    return m;
+  };
+  const addSphere = (parent: T.Object3D, x: number, y: number, z: number, sx: number, sy: number, sz: number, mat: T.Material) => {
+    const m = new T.Mesh(new T.SphereGeometry(1, 16, 12), mat);
+    m.position.set(x, y, z);
+    m.scale.set(sx, sy, sz);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    parent.add(m);
+    return m;
+  };
 
-  const texture = new T.CanvasTexture(canvas);
-  texture.colorSpace = T.SRGBColorSpace;
-  texture.anisotropy = 2;
-  const material = new T.MeshBasicMaterial({
-    map: texture,
-    transparent: true,
-    side: T.DoubleSide,
-    depthWrite: false,
-  });
-  const badge = new T.Mesh(new T.PlaneGeometry(.86, .24), material);
-  badge.position.set(0, 1.35, .24);
-  root.add(badge);
-};
+  const bodyGroup = new T.Group();
+  root.add(bodyGroup);
+  addBox(bodyGroup, 0, 1.03, 0, .56, .78, .38, body);
+  addBox(bodyGroup, 0, 1.42, .02, .48, .13, .34, dark);
 
-const normalizeIvan = (root: T.Object3D) => {
-  const box = new T.Box3().setFromObject(root);
-  const size = box.getSize(new T.Vector3());
-  if (size.y > 0) {
-    const scale = 2.0 / size.y;
-    root.scale.setScalar(scale);
-    const normalized = new T.Box3().setFromObject(root);
-    root.position.y -= normalized.min.y;
-  }
+  const head = new T.Group();
+  head.position.y = 1.78;
+  root.add(head);
+  addSphere(head, 0, 0, 0, .27, .31, .25, skin);
 
-  // Mixamo characters are commonly authored facing the opposite direction
-  // from the runner. Keep Ivan upright and facing the same way as the player.
-  root.rotation.y = Math.PI;
+  // Construction helmet: dome + brim, deliberately simple and clearly recognizable.
+  addSphere(head, 0, .18, 0, .31, .16, .29, helmet);
+  const brim = new T.Mesh(new T.CylinderGeometry(.37, .37, .075, 24), helmet);
+  brim.position.set(0, .095, .01);
+  brim.castShadow = true;
+  brim.receiveShadow = true;
+  head.add(brim);
+  addBox(head, 0, .03, .24, .24, .08, .05, visor);
+
+  const makeLeg = (x: number) => {
+    const upper = new T.Group();
+    upper.position.set(x, .73, 0);
+    root.add(upper);
+    addBox(upper, 0, -.31, 0, .16, .58, .17, dark);
+    const lower = new T.Group();
+    lower.position.set(0, -.58, 0);
+    upper.add(lower);
+    addBox(lower, 0, -.27, 0, .14, .5, .15, dark);
+    addBox(lower, 0, -.53, .11, .2, .09, .34, helmet);
+    return upper;
+  };
+
+  const makeArm = (x: number) => {
+    const upper = new T.Group();
+    upper.position.set(x, 1.38, 0);
+    root.add(upper);
+    addBox(upper, 0, -.22, 0, .13, .43, .14, body);
+    const lower = new T.Group();
+    lower.position.set(0, -.43, 0);
+    upper.add(lower);
+    addBox(lower, 0, -.2, 0, .11, .38, .12, skin);
+    return upper;
+  };
+
+  const leftLeg = makeLeg(-.17);
+  const rightLeg = makeLeg(.17);
+  const leftArm = makeArm(-.39);
+  const rightArm = makeArm(.39);
+
+  root.userData.leftLeg = leftLeg;
+  root.userData.rightLeg = rightLeg;
+  root.userData.leftArm = leftArm;
+  root.userData.rightArm = rightArm;
+  root.userData.baseY = 0;
 
   root.traverse((object: T.Object3D) => {
     const mesh = object as T.Mesh;
-    if (mesh.isMesh) {
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      // Do not let a GLB bounding box/frustum decision make the chaser vanish
-      // while he is deliberately kept close to the camera.
-      mesh.frustumCulled = false;
-    }
+    if (mesh.isMesh) mesh.frustumCulled = false;
   });
 
-  root.frustumCulled = false;
-  root.renderOrder = 20;
-  addIvanName(root);
+  // Keep him unmistakably behind the philosopher, never as a collision object.
+  root.visible = false;
+  root.position.y = 0;
+  game.scene.add(root);
+  return root;
 };
 
-const loadIvan = function () {
-  if (this.__ivanLoaded || this.__ivanLoading) return;
-  this.__ivanLoading = true;
-  const loader = new GLTFLoader();
-  loader.load(
-    IVAN_MODEL_URL,
-    (gltf) => {
-      this.__ivanLoaded = true;
-      this.__ivanLoading = false;
-      this.__ivanModel = gltf.scene;
-      normalizeIvan(this.__ivanModel);
-      this.__ivanMixer = new T.AnimationMixer(this.__ivanModel);
-      loadIvanRun.call(this);
-
-      // If the first hit happened before the model finished loading, put Ivan
-      // into the already-running chase immediately.
-      if (this.__ivanChase) attachIvan.call(this);
-    },
-    undefined,
-    (error) => {
-      this.__ivanLoading = false;
-      console.warn('[Filo Runner] Ivan model failed to load:', error);
-    },
-  );
+const animateIvan = function (model: T.Group, t: number) {
+  const stride = Math.sin(t * 13.5);
+  const strideOpposite = Math.sin(t * 13.5 + Math.PI);
+  const arms = model.userData;
+  const leftLeg = arms.leftLeg as T.Group;
+  const rightLeg = arms.rightLeg as T.Group;
+  const leftArm = arms.leftArm as T.Group;
+  const rightArm = arms.rightArm as T.Group;
+  leftLeg.rotation.x = stride * .72;
+  rightLeg.rotation.x = strideOpposite * .72;
+  leftArm.rotation.x = strideOpposite * .62;
+  rightArm.rotation.x = stride * .62;
+  model.rotation.z = Math.sin(t * 4.5) * .025;
+  model.position.y = Math.abs(Math.sin(t * 13.5)) * .035;
 };
 
-const loadIvanRun = function () {
-  if (this.__ivanRunLoaded || this.__ivanRunLoading) return;
-  this.__ivanRunLoading = true;
-  const loader = new GLTFLoader();
-  loader.load(
-    IVAN_RUN_URL,
-    (gltf) => {
-      this.__ivanRunLoaded = true;
-      this.__ivanRunLoading = false;
-      this.__ivanClips = gltf.animations;
-      playRun.call(this);
-    },
-    undefined,
-    (error) => {
-      this.__ivanRunLoading = false;
-      console.warn('[Filo Runner] Ivan slow run animation failed to load:', error);
-    },
-  );
-};
-
-const playRun = function () {
-  const mixer = this.__ivanMixer as T.AnimationMixer | undefined;
-  const clips = (this.__ivanClips as T.AnimationClip[] | undefined) ?? [];
-  if (!mixer || !clips.length) return;
-  const clip = findClip(clips);
-  if (!clip) return;
-  if (this.__ivanAction?.getClip() === clip && this.__ivanAction.isRunning()) return;
-  this.__ivanAction?.stop();
-  this.__ivanAction = mixer.clipAction(clip);
-  this.__ivanAction.reset().setLoop(T.LoopRepeat, Infinity).play();
-};
-
-const attachIvan = function () {
-  if (!this.__ivanModel) return;
-
-  if (!this.__ivanAttached) {
-    this.__ivanAttached = true;
-    this.scene.add(this.__ivanModel);
-    this.__ivanModel.visible = true;
-    this.__ivanModel.position.set(this.runner.position.x, 0, 5.4);
-    this.__ivanModel.updateMatrixWorld(true);
-  } else {
-    this.__ivanModel.visible = true;
-  }
-
-  playRun.call(this);
-};
-
-const hideIvan = function () {
-  const model = this.__ivanModel as T.Object3D | undefined;
-  if (model) model.visible = false;
-  this.__ivanChase = false;
-  this.__ivanChaseTime = 0;
-};
-
-const startIvanChase = function () {
+const startIvanScene = function () {
   if (this.mode !== 'playing') return;
+  if (!this.__ivanModel) this.__ivanModel = makeIvan(this);
+
+  const model = this.__ivanModel as T.Group;
+  this.__ivanSceneTime = 0;
   this.__ivanChase = true;
-  this.__ivanChaseTime = 0;
-  attachIvan.call(this);
+  model.visible = true;
+  model.position.x = this.runner.position.x;
+  model.position.z = 4.9;
+  model.position.y = 0;
+  model.rotation.set(0, 0, 0);
 
-  const model = this.__ivanModel as T.Object3D | undefined;
-  if (model) {
-    model.visible = true;
-    model.position.x = this.runner.position.x;
-    model.position.y = 0;
-    model.position.z = 5.4;
-    model.updateMatrixWorld(true);
-    playRun.call(this);
-  }
+  // Visual impact: the philosopher surges forward for a moment, then recovers.
+  this.__ivanRunnerKick = 0;
+  this.__ivanRunnerBaseZ = 1.2;
+  this.runner.position.z = .28;
 
-  // Strong, unmistakable hit feedback. The run continues with one life lost.
   this.shake = Math.max(this.shake as number, .32);
   this.tone?.(120, .16, 70, 'sawtooth');
   if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(90);
 };
 
-proto.buildWorld = function () {
-  originalBuildWorld.call(this);
-  loadIvan.call(this);
+const hideIvan = function () {
+  const model = this.__ivanModel as T.Group | undefined;
+  if (model) model.visible = false;
+  this.__ivanChase = false;
+  this.__ivanSceneTime = 0;
 };
 
-// The first collision costs the single extra life and starts the Ivan chase.
-// The next collision is game over, regardless of whether the GLB has finished loading.
+proto.buildWorld = function () {
+  originalBuildWorld.call(this);
+  if (!this.__ivanModel) this.__ivanModel = makeIvan(this);
+};
+
 proto.die = function () {
   if (this.mode !== 'playing') return originalDie.call(this);
 
   if (!this.__ivanLifeLost) {
     this.__ivanLifeLost = true;
-    startIvanChase.call(this);
+    startIvanScene.call(this);
     return;
   }
 
   hideIvan.call(this);
+  this.runner.position.z = 1.2;
   return originalDie.call(this);
 };
 
@@ -201,38 +171,50 @@ proto.start = function () {
   originalStart.call(this);
   this.__ivanLifeLost = false;
   this.__ivanChase = false;
-  this.__ivanChaseTime = 0;
-  this.__ivanAttached = false;
-  const model = this.__ivanModel as T.Object3D | undefined;
+  this.__ivanSceneTime = 0;
+  this.__ivanRunnerKick = 0;
+  this.runner.position.z = 1.2;
+  const model = this.__ivanModel as T.Group | undefined;
   if (model) {
     model.visible = false;
-    if (model.parent) model.parent.remove(model);
+    model.position.set(0, 0, 4.9);
   }
-  loadIvan.call(this);
 };
 
 proto.step = function (dt: number) {
   originalStep.call(this, dt);
 
-  const mixer = this.__ivanMixer as T.AnimationMixer | undefined;
-  if (mixer && this.mode === 'playing') mixer.update(dt);
-
   if (!this.__ivanChase || this.mode !== 'playing') return;
+  const model = this.__ivanModel as T.Group | undefined;
+  if (!model) return;
 
-  // The model may finish loading after the collision. Attach it as soon as it is ready.
-  if (!this.__ivanModel) return;
-  attachIvan.call(this);
+  this.__ivanSceneTime += dt;
+  const t = this.__ivanSceneTime as number;
 
-  const model = this.__ivanModel as T.Object3D;
-  this.__ivanChaseTime += dt;
-  const t = this.__ivanChaseTime as number;
+  // 0.0–0.75s: philosopher surges forward. 0.75–1.8s: slows and returns.
+  let targetRunnerZ = .28;
+  if (t < .8) {
+    const p = T.MathUtils.smoothstep(t / .8, 0, 1);
+    targetRunnerZ = T.MathUtils.lerp(1.2, .22, p);
+  } else if (t < 2.15) {
+    const p = T.MathUtils.smoothstep((t - .8) / 1.35, 0, 1);
+    targetRunnerZ = T.MathUtils.lerp(.22, 1.2, p);
+  } else {
+    targetRunnerZ = 1.2;
+  }
+  this.runner.position.z = targetRunnerZ;
 
-  // Keep Ivan clearly behind the player, but inside the camera's useful view.
-  // Do not reset his position every frame: he should visibly run toward the player.
-  const targetZ = Math.max(2.8, 5.4 - t * 0.42);
-  model.position.z = T.MathUtils.damp(model.position.z, targetZ, 7, dt);
+  // Ivan follows the surge briefly, then loses ground as the philosopher recovers.
+  const ivanTargetZ = t < 1.15
+    ? T.MathUtils.lerp(4.9, 3.6, T.MathUtils.smoothstep(t / 1.15, 0, 1))
+    : T.MathUtils.lerp(3.6, 6.3, T.MathUtils.smoothstep(Math.min(1, (t - 1.15) / 1.55), 0, 1));
+  model.position.z = T.MathUtils.damp(model.position.z, ivanTargetZ, 9, dt);
   model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 12, dt);
-  model.position.y = 0;
+  model.visible = true;
+  animateIvan(model, t);
 
-  if (t >= 7.8 || model.position.z <= 2.75) hideIvan.call(this);
+  if (t >= 3.1) {
+    hideIvan.call(this);
+    this.runner.position.z = 1.2;
+  }
 };
