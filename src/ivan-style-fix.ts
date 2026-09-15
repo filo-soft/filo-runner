@@ -34,32 +34,33 @@ const styleIvan = (root: T.Group) => {
       torso.add(mesh);
       return mesh;
     };
-    // Rounded workwear details only — no boxy jacket shell over the body.
     addCapsule(-.17, 1.14, .245, .027, .22, orange);
     addCapsule(.17, 1.14, .245, .027, .22, orange);
     addCapsule(0, .93, .25, .025, .34, white, Math.PI / 2);
     addCapsule(0, .80, .19, .11, .10, blueDark);
   }
 
-  // The back carries Ivan's name, not the company wordmark.
+  // The name is placed on the side facing the camera: Ivan runs away from the camera,
+  // so this is his actual back. Keep it bright and readable on the blue jacket.
   const badgeCanvas = document.createElement('canvas');
-  badgeCanvas.width = 360;
-  badgeCanvas.height = 120;
+  badgeCanvas.width = 480;
+  badgeCanvas.height = 150;
   const ctx = badgeCanvas.getContext('2d');
   if (ctx && torso) {
     ctx.clearRect(0, 0, badgeCanvas.width, badgeCanvas.height);
     ctx.fillStyle = '#f4eee2';
-    ctx.font = '900 78px Arial Black, Arial, sans-serif';
+    ctx.font = '900 96px Arial Black, Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('ИВАН', 180, 58);
+    ctx.fillText('ИВАН', 240, 74);
     const texture = new T.CanvasTexture(badgeCanvas);
     texture.colorSpace = T.SRGBColorSpace;
+    texture.anisotropy = 4;
     const mat = new T.MeshBasicMaterial({ map: texture, transparent: true, side: T.DoubleSide, depthWrite: false });
-    const badge = new T.Mesh(new T.PlaneGeometry(.58, .19), mat);
+    const badge = new T.Mesh(new T.PlaneGeometry(.72, .225), mat);
     badge.name = 'IvanBackName';
-    badge.position.set(0, 1.12, -.31);
-    badge.rotation.y = Math.PI;
+    badge.position.set(0, 1.12, .305);
+    badge.rotation.set(0, 0, 0);
     torso.add(badge);
   }
 
