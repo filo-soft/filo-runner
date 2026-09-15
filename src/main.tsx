@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import "./mobile-hud.css";
+import "./game-over-layout.css";
 import "./ui-defaults";
 import "./difficulty";
 import "./temple-roof-fix";
