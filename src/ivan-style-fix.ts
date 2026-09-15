@@ -70,36 +70,44 @@ const styleIvan = (root: T.Group) => {
   addBox(jacket, 0, .87, .205, .64, .06, .04, orange);
   addBox(jacket, 0, .99, .228, .035, .46, .025, white);
 
+  // No company wordmark on Ivan's front. Put his name clearly on the back.
   const badgeCanvas = document.createElement('canvas');
-  badgeCanvas.width = 256;
-  badgeCanvas.height = 96;
+  badgeCanvas.width = 320;
+  badgeCanvas.height = 120;
   const ctx = badgeCanvas.getContext('2d');
   if (ctx) {
     ctx.clearRect(0, 0, badgeCanvas.width, badgeCanvas.height);
     ctx.fillStyle = '#f4eee2';
-    ctx.font = '900 38px Arial Black, Arial, sans-serif';
+    ctx.font = '900 78px Arial Black, Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('ЖЕЛЕЗНО', 128, 45);
+    ctx.fillText('ИВАН', 160, 58);
     const texture = new T.CanvasTexture(badgeCanvas);
     texture.colorSpace = T.SRGBColorSpace;
     const mat = new T.MeshBasicMaterial({ map: texture, transparent: true, side: T.DoubleSide, depthWrite: false });
-    const badge = new T.Mesh(new T.PlaneGeometry(.48, .18), mat);
-    badge.position.set(0, 1.18, .25);
+    const badge = new T.Mesh(new T.PlaneGeometry(.54, .2), mat);
+    badge.position.set(0, 1.16, -.255);
+    badge.rotation.y = Math.PI;
     jacket.add(badge);
   }
 
   const helmet = new T.Group();
   helmet.name = 'IvanHelmetDetail';
   root.add(helmet);
-  addBox(helmet, 0, 2.03, .02, .055, .14, .31, orange);
-  addBox(helmet, -.19, 1.95, 0, .055, .12, .32, orange);
-  addBox(helmet, .19, 1.95, 0, .055, .12, .32, orange);
-  addSphere(helmet, 0, 1.98, -.1, .2, .055, .09, blueDark);
-  addBox(helmet, 0, 1.89, .27, .23, .045, .035, black);
+  addSphere(helmet, 0, 2.01, 0, .33, .13, .3, orange);
+  const brim = new T.Mesh(new T.CylinderGeometry(.39, .39, .075, 28), orange);
+  brim.position.set(0, 1.91, 0);
+  brim.castShadow = true;
+  brim.receiveShadow = true;
+  helmet.add(brim);
+  addBox(helmet, 0, 2.02, .08, .06, .17, .34, orange);
+  addBox(helmet, -.2, 1.97, 0, .05, .11, .32, orange);
+  addBox(helmet, .2, 1.97, 0, .05, .11, .32, orange);
+  addSphere(helmet, 0, 1.99, -.12, .2, .06, .1, blueDark);
+  addBox(helmet, 0, 1.905, .28, .25, .045, .04, black);
   const headlamp = new T.Mesh(new T.CylinderGeometry(.055, .055, .025, 16), white);
   headlamp.rotation.x = Math.PI / 2;
-  headlamp.position.set(0, 2.0, .32);
+  headlamp.position.set(0, 2.02, .325);
   headlamp.castShadow = true;
   helmet.add(headlamp);
 
