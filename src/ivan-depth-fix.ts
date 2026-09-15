@@ -5,12 +5,11 @@ const proto = RunnerGame.prototype as any;
 const originalStart = proto.start;
 const originalStep = proto.step;
 
-// The camera is on positive Z and the philosopher is at z ≈ 1.2.
-// To keep Ivan visually behind the philosopher, Ivan must stay on the
-// negative/smaller-Z side rather than between the camera and the philosopher.
+// Camera is on positive Z; philosopher is at z ≈ 1.2.
+// Ivan stays on the smaller-Z side so he is visually behind, not between
+// the camera and the philosopher.
 const IVAN_BACK_Z = -0.35;
-const IVAN_CLOSE_Z = 0.05;
-const IVAN_FRONT_LIMIT = -0.15;
+const IVAN_CLOSE_Z = -0.15;
 const IVAN_RETREAT_Z = -2.2;
 const IVAN_INTRO = 4.5;
 const IVAN_RETREAT = 1.8;
@@ -49,10 +48,7 @@ const enforceDepth = (game: any, model: T.Group, dt: number) => {
       1
     );
     const targetZ = T.MathUtils.lerp(IVAN_BACK_Z, IVAN_RETREAT_Z, retreatProgress);
-    model.position.z = Math.min(
-      model.position.z,
-      T.MathUtils.damp(model.position.z, targetZ, 7, dt)
-    );
+    model.position.z = T.MathUtils.damp(model.position.z, targetZ, 7, dt);
     model.position.x = game.runner.position.x;
 
     const ground = Number.isFinite(game.groundY) ? Number(game.groundY) : 0;
@@ -65,7 +61,7 @@ const enforceDepth = (game: any, model: T.Group, dt: number) => {
     return;
   }
 
-  // Collision/chase scene: stay visually behind the philosopher while moving smoothly.
+  // Collision/chase scene: smooth approach, but never reaches the philosopher's z.
   model.visible = true;
   const t = Number(game.__ivanSceneTime || 0);
   let targetZ: number;
@@ -75,10 +71,8 @@ const enforceDepth = (game: any, model: T.Group, dt: number) => {
     targetZ = T.MathUtils.lerp(IVAN_CLOSE_Z, IVAN_BACK_Z - 0.2, T.MathUtils.smoothstep(Math.min(1, (t - 1.1) / 1.9), 0, 1));
   }
 
-  model.position.z = Math.min(
-    model.position.z,
-    Math.max(targetZ, IVAN_FRONT_LIMIT)
-  );
+  const smoothedZ = T.MathUtils.damp(model.position.z, targetZ, 10, dt);
+  model.position.z = Math.min(smoothedZ, IVAN_CLOSE_Z);
   model.position.x = T.MathUtils.damp(model.position.x, game.runner.position.x, 12, dt);
 
   const ground = Number.isFinite(game.groundY) ? Number(game.groundY) : 0;
