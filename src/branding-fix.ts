@@ -3,7 +3,6 @@ import logoSvg from './assets/branding/logo железно.svg?url';
 import { RunnerGame } from './game';
 
 const proto = RunnerGame.prototype as any;
-const originalBuildPrototypes = proto.buildPrototypes;
 const originalBuildWorld = proto.buildWorld;
 
 const logoTexture = (() => {
@@ -38,14 +37,49 @@ const makePanel = (width: number, height: number, backingColor = '#2457a6') => {
   return group;
 };
 
-const addGateLogo = (gate: T.Group) => {
-  if (gate.userData.zheleznoRoofSign) return;
-  const sign = makePanel(3.55, .62);
-  sign.name = 'ZheleznoGateRoofLogo';
-  // Front face of the triangular pediment, with enough offset to avoid z-fighting.
-  sign.position.set(0, 7.12, 1.04);
-  gate.add(sign);
-  gate.userData.zheleznoRoofSign = true;
+const addGreekRelief = (gate: T.Group) => {
+  if (gate.userData.greekRoofRelief) return;
+
+  const relief = new T.Group();
+  relief.name = 'GreekRoofRelief';
+  relief.position.set(0, 7.12, 1.055);
+
+  const mat = new T.MeshStandardMaterial({
+    color: '#d8c7aa',
+    roughness: .88,
+    metalness: .02
+  });
+
+  // Repeating Greek meander / geometric relief, kept shallow so it reads as carved stone.
+  const barGeo = new T.BoxGeometry(.34, .07, .055);
+  const verticalGeo = new T.BoxGeometry(.07, .34, .055);
+  const step = .43;
+  for (let i = -4; i <= 4; i++) {
+    const x = i * step;
+    const top = new T.Mesh(barGeo, mat);
+    top.position.set(x, .18, 0);
+    relief.add(top);
+
+    const bottom = new T.Mesh(barGeo, mat);
+    bottom.position.set(x, -.18, 0);
+    relief.add(bottom);
+
+    if (i < 4) {
+      const right = new T.Mesh(verticalGeo, mat);
+      right.position.set(x + .17, 0, 0);
+      relief.add(right);
+    }
+  }
+
+  relief.scale.set(1.65, 1, 1);
+  relief.traverse((o: T.Object3D) => {
+    if (o instanceof T.Mesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
+  gate.add(relief);
+  gate.userData.greekRoofRelief = true;
 };
 
 const addDistantTempleLogo = (temple: T.Group) => {
@@ -58,9 +92,9 @@ const addDistantTempleLogo = (temple: T.Group) => {
 };
 
 proto.buildPrototypes = function () {
-  originalBuildPrototypes.call(this);
+  // The old logo on the close temple/gate roof is intentionally replaced by Greek relief.
   const gate = this.prototypes.get('gate') as T.Group | undefined;
-  if (gate) addGateLogo(gate);
+  if (gate) addGreekRelief(gate);
 };
 
 proto.buildWorld = function () {
