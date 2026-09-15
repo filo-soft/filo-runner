@@ -87,7 +87,7 @@ const startIvanScene = function (impact = false) {
   this.__ivanChase = impact;
   model.visible = true;
   model.position.x = this.runner.position.x;
-  model.position.z = impact ? 4.55 : 3.15;
+  model.position.z = impact ? -0.1 : -3.4;
   model.position.y = 0;
   model.rotation.set(0, 0, 0);
   if (impact) {
@@ -124,7 +124,7 @@ proto.start = function () {
   this.__ivanEdgeImpact = false;
   this.runner.position.z = 1.2;
   const model = this.__ivanModel as T.Group | undefined;
-  if (model) { model.visible = true; model.position.set(this.runner.position.x, 0, 3.15); model.rotation.set(0, 0, 0); }
+  if (model) { model.visible = true; model.position.set(this.runner.position.x, 0, -3.4); model.rotation.set(0, 0, 0); }
 };
 
 proto.step = function (dt: number) {
@@ -143,10 +143,11 @@ proto.step = function (dt: number) {
   if (edgeImpact && !this.__ivanLifeLost) { this.__ivanLifeLost = true; startIvanScene.call(this, true); }
 
   if (!this.__ivanChase) {
-    const opening = Math.min(1, (this.stats.time as number) / 15);
-    const idleDistance = T.MathUtils.lerp(3.15, 4.4, opening);
-    const idleTargetZ = idleDistance + Math.sin((this.stats.time as number) * 1.35) * .10;
-    model.position.z = T.MathUtils.damp(model.position.z, idleTargetZ, 7, dt);
+    // Negative Z is behind the philosopher, farther down the track.
+    const opening = Math.min(1, (this.stats.time as number) / 12);
+    const idleDistance = T.MathUtils.lerp(-3.4, -4.8, opening);
+    const idleTargetZ = idleDistance + Math.sin((this.stats.time as number) * 1.35) * .08;
+    model.position.z = T.MathUtils.damp(model.position.z, idleTargetZ, 6, dt);
     model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 8, dt);
     model.visible = true;
     animateIvan(model, this.stats.time as number);
@@ -162,15 +163,15 @@ proto.step = function (dt: number) {
   this.runner.position.z = targetRunnerZ;
 
   const ivanTargetZ = t < 1.25
-    ? T.MathUtils.lerp(4.55, 3.55, T.MathUtils.smoothstep(t / 1.25, 0, 1))
-    : T.MathUtils.lerp(3.55, 4.4, T.MathUtils.smoothstep(Math.min(1, (t - 1.25) / 2.8), 0, 1));
-  model.position.z = T.MathUtils.damp(model.position.z, ivanTargetZ, 8, dt);
+    ? T.MathUtils.lerp(-0.1, .15, T.MathUtils.smoothstep(t / 1.25, 0, 1))
+    : T.MathUtils.lerp(.15, -4.0, T.MathUtils.smoothstep(Math.min(1, (t - 1.25) / 2.8), 0, 1));
+  model.position.z = T.MathUtils.damp(model.position.z, ivanTargetZ, 7, dt);
   model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 11, dt);
   model.visible = true;
   animateIvan(model, t);
 
   if (t >= 5.1) {
-    model.position.z = 4.4;
+    model.position.z = -4.0;
     this.__ivanChase = false;
     this.__ivanSceneTime = 0;
     this.runner.position.z = 1.2;
