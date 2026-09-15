@@ -1,6 +1,6 @@
 import * as T from 'three';
-import { RunnerGame } from './game';
 import logoSvg from './assets/branding/logo железно.svg?url';
+import { RunnerGame } from './game';
 
 const proto = RunnerGame.prototype as any;
 const originalBuildPrototypes = proto.buildPrototypes;
@@ -22,17 +22,18 @@ const logoTexture = (() => {
 const makePanel = (width: number, height: number, backingColor = '#2457a6') => {
   const group = new T.Group();
   const backing = new T.Mesh(
-    new T.BoxGeometry(width + .18, height + .18, .12),
+    new T.BoxGeometry(width + .16, height + .16, .12),
     new T.MeshStandardMaterial({ color: backingColor, roughness: .7 })
   );
   backing.castShadow = true;
   backing.receiveShadow = true;
   group.add(backing);
+
   const panel = new T.Mesh(
     new T.PlaneGeometry(width, height),
-    new T.MeshBasicMaterial({ map: logoTexture, transparent: true, side: T.DoubleSide })
+    new T.MeshBasicMaterial({ map: logoTexture, transparent: true, side: T.DoubleSide, depthWrite: false })
   );
-  panel.position.z = .071;
+  panel.position.z = .081;
   group.add(panel);
   return group;
 };
@@ -41,7 +42,8 @@ const addGateLogo = (gate: T.Group) => {
   if (gate.userData.zheleznoRoofSign) return;
   const sign = makePanel(3.55, .62);
   sign.name = 'ZheleznoGateRoofLogo';
-  sign.position.set(0, 7.78, .89);
+  // Front face of the triangular pediment, with enough offset to avoid z-fighting.
+  sign.position.set(0, 7.12, 1.04);
   gate.add(sign);
   gate.userData.zheleznoRoofSign = true;
 };
@@ -50,7 +52,7 @@ const addDistantTempleLogo = (temple: T.Group) => {
   if (temple.userData.zheleznoFacadeLogo) return;
   const sign = makePanel(7.1, 1.02);
   sign.name = 'ZheleznoDistantTempleRoofLogo';
-  sign.position.set(0, 11.05, 3.07);
+  sign.position.set(0, 10.55, 3.18);
   temple.add(sign);
   temple.userData.zheleznoFacadeLogo = true;
 };
