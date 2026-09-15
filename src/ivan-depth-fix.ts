@@ -5,13 +5,13 @@ const proto = RunnerGame.prototype as any;
 const originalStart = proto.start;
 const originalStep = proto.step;
 
-// The philosopher is at z ≈ 1.2. Positive Z is physically behind him;
-// negative Z is farther down the track / visually ahead.
-// Keep a deliberate visual gap so Ivan never overlaps the philosopher.
-const IVAN_BACK_Z = 5.0;
-const IVAN_CLOSE_Z = 5.6;
-const IVAN_FRONT_LIMIT = 4.8;
-const IVAN_RETREAT_Z = 8.5;
+// The camera is on positive Z and the philosopher is at z ≈ 1.2.
+// To keep Ivan visually behind the philosopher, Ivan must stay on the
+// negative/smaller-Z side rather than between the camera and the philosopher.
+const IVAN_BACK_Z = -0.35;
+const IVAN_CLOSE_Z = 0.05;
+const IVAN_FRONT_LIMIT = -0.15;
+const IVAN_RETREAT_Z = -2.2;
 const IVAN_INTRO = 4.5;
 const IVAN_RETREAT = 1.8;
 
@@ -41,8 +41,6 @@ const enforceDepth = (game: any, model: T.Group, dt: number) => {
     return;
   }
 
-  // Normal run: Ivan stays behind for the intro, then slowly drifts farther back
-  // instead of disappearing on a hard frame boundary.
   if (!chase) {
     model.visible = true;
     const retreatProgress = T.MathUtils.smoothstep(
@@ -51,31 +49,36 @@ const enforceDepth = (game: any, model: T.Group, dt: number) => {
       1
     );
     const targetZ = T.MathUtils.lerp(IVAN_BACK_Z, IVAN_RETREAT_Z, retreatProgress);
-    model.position.z = T.MathUtils.damp(model.position.z, targetZ, 7, dt);
+    model.position.z = Math.min(
+      model.position.z,
+      T.MathUtils.damp(model.position.z, targetZ, 7, dt)
+    );
     model.position.x = game.runner.position.x;
 
     const ground = Number.isFinite(game.groundY) ? Number(game.groundY) : 0;
     model.position.y = T.MathUtils.damp(model.position.y, ground, 14, dt);
     setModelOpacity(model, 1 - retreatProgress);
 
-    if (retreatProgress >= 0.999 && model.position.z > IVAN_RETREAT_Z - 0.08) {
+    if (retreatProgress >= 0.999 && model.position.z < IVAN_RETREAT_Z + 0.08) {
       model.visible = false;
     }
     return;
   }
 
-  // Collision/chase scene: Ivan briefly stays close behind, but never overlaps
-  // the philosopher. Movement remains smooth on the corrected positive-Z side.
+  // Collision/chase scene: stay visually behind the philosopher while moving smoothly.
   model.visible = true;
   const t = Number(game.__ivanSceneTime || 0);
   let targetZ: number;
   if (t < 1.1) {
     targetZ = T.MathUtils.lerp(IVAN_BACK_Z, IVAN_CLOSE_Z, T.MathUtils.smoothstep(t / 1.1, 0, 1));
   } else {
-    targetZ = T.MathUtils.lerp(IVAN_CLOSE_Z, IVAN_BACK_Z + 0.35, T.MathUtils.smoothstep(Math.min(1, (t - 1.1) / 1.9), 0, 1));
+    targetZ = T.MathUtils.lerp(IVAN_CLOSE_Z, IVAN_BACK_Z - 0.2, T.MathUtils.smoothstep(Math.min(1, (t - 1.1) / 1.9), 0, 1));
   }
 
-  model.position.z = T.MathUtils.damp(model.position.z, Math.max(targetZ, IVAN_FRONT_LIMIT), 10, dt);
+  model.position.z = Math.min(
+    model.position.z,
+    Math.max(targetZ, IVAN_FRONT_LIMIT)
+  );
   model.position.x = T.MathUtils.damp(model.position.x, game.runner.position.x, 12, dt);
 
   const ground = Number.isFinite(game.groundY) ? Number(game.groundY) : 0;
