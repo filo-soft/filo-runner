@@ -17,6 +17,8 @@ import "./ivan-back-fix";
 import "./ivan-position-fix";
 import "./ivan-final-fix";
 import "./cityscape-fix";
+import "./cityscape-sparse-fix";
+import "./ivan-depth-fix";
 import "./branding-fix";
 import App from "./App";
 
