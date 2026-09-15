@@ -7,10 +7,10 @@ const originalStep = proto.step;
 
 // The philosopher is at z ≈ 1.2. Positive Z is physically behind him;
 // negative Z is farther down the track / visually ahead.
-// Keep a deliberate gap so Ivan can never cross the philosopher.
+// Keep a deliberate visual gap so Ivan never overlaps the philosopher.
 const IVAN_BACK_Z = 5.0;
-const IVAN_CLOSE_Z = 3.6;
-const IVAN_FRONT_LIMIT = 2.8;
+const IVAN_CLOSE_Z = 5.6;
+const IVAN_FRONT_LIMIT = 4.8;
 const IVAN_RETREAT_Z = 8.5;
 const IVAN_INTRO = 4.5;
 const IVAN_RETREAT = 1.8;
@@ -64,8 +64,8 @@ const enforceDepth = (game: any, model: T.Group, dt: number) => {
     return;
   }
 
-  // Collision/chase scene: reproduce the earlier soft motion, but on the correct
-  // positive-Z side. Ivan comes closer, then gradually falls back again.
+  // Collision/chase scene: Ivan briefly stays close behind, but never overlaps
+  // the philosopher. Movement remains smooth on the corrected positive-Z side.
   model.visible = true;
   const t = Number(game.__ivanSceneTime || 0);
   let targetZ: number;
