@@ -12,16 +12,9 @@ import "./audio-fix";
 import "./game-features";
 import "./late-game-fix";
 import "./economy-fix";
-import "./chaser-fix";
-import "./ivan-style-fix";
-import "./ivan-back-fix";
-import "./ivan-position-fix";
-import "./ivan-final-fix";
 import "./cityscape-fix";
 import "./cityscape-sparse-fix";
-import "./ivan-depth-fix";
 import "./branding-fix";
-import "./ivan-authoritative-fix";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(
