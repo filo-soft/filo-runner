@@ -53,13 +53,24 @@ const normalizeIvan = (root: T.Object3D) => {
     const normalized = new T.Box3().setFromObject(root);
     root.position.y -= normalized.min.y;
   }
+
+  // Mixamo characters are commonly authored facing the opposite direction
+  // from the runner. Keep Ivan upright and facing the same way as the player.
+  root.rotation.y = Math.PI;
+
   root.traverse((object: T.Object3D) => {
     const mesh = object as T.Mesh;
     if (mesh.isMesh) {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+      // Do not let a GLB bounding box/frustum decision make the chaser vanish
+      // while he is deliberately kept close to the camera.
+      mesh.frustumCulled = false;
     }
   });
+
+  root.frustumCulled = false;
+  root.renderOrder = 20;
   addIvanName(root);
 };
 
@@ -76,6 +87,9 @@ const loadIvan = function () {
       normalizeIvan(this.__ivanModel);
       this.__ivanMixer = new T.AnimationMixer(this.__ivanModel);
       loadIvanRun.call(this);
+
+      // If the first hit happened before the model finished loading, put Ivan
+      // into the already-running chase immediately.
       if (this.__ivanChase) attachIvan.call(this);
     },
     undefined,
@@ -120,12 +134,17 @@ const playRun = function () {
 
 const attachIvan = function () {
   if (!this.__ivanModel) return;
+
   if (!this.__ivanAttached) {
     this.__ivanAttached = true;
     this.scene.add(this.__ivanModel);
+    this.__ivanModel.visible = true;
+    this.__ivanModel.position.set(this.runner.position.x, 0, 5.4);
+    this.__ivanModel.updateMatrixWorld(true);
+  } else {
+    this.__ivanModel.visible = true;
   }
-  this.__ivanModel.visible = true;
-  this.__ivanModel.position.set(this.runner.position.x, 0, 5.2);
+
   playRun.call(this);
 };
 
@@ -141,13 +160,17 @@ const startIvanChase = function () {
   this.__ivanChase = true;
   this.__ivanChaseTime = 0;
   attachIvan.call(this);
+
   const model = this.__ivanModel as T.Object3D | undefined;
   if (model) {
     model.visible = true;
     model.position.x = this.runner.position.x;
-    model.position.z = 5.2;
+    model.position.y = 0;
+    model.position.z = 5.4;
+    model.updateMatrixWorld(true);
     playRun.call(this);
   }
+
   // Strong, unmistakable hit feedback. The run continues with one life lost.
   this.shake = Math.max(this.shake as number, .32);
   this.tone?.(120, .16, 70, 'sawtooth');
@@ -204,10 +227,12 @@ proto.step = function (dt: number) {
   this.__ivanChaseTime += dt;
   const t = this.__ivanChaseTime as number;
 
-  // Ivan runs behind the player and gradually closes the gap for a short chase.
-  const targetZ = 5.2 + Math.min(8.5, t * 1.15);
-  model.position.z = T.MathUtils.damp(model.position.z, targetZ, 8, dt);
+  // Keep Ivan clearly behind the player, but inside the camera's useful view.
+  // Do not reset his position every frame: he should visibly run toward the player.
+  const targetZ = Math.max(2.8, 5.4 - t * 0.42);
+  model.position.z = T.MathUtils.damp(model.position.z, targetZ, 7, dt);
   model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 12, dt);
+  model.position.y = 0;
 
-  if (t >= 7.8 || model.position.z >= 14.5) hideIvan.call(this);
+  if (t >= 7.8 || model.position.z <= 2.75) hideIvan.call(this);
 };
