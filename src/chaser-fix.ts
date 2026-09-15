@@ -80,7 +80,7 @@ const startIvanScene = function (impact = false) {
   this.__ivanChase = impact;
   model.visible = true;
   model.position.x = this.runner.position.x;
-  model.position.z = impact ? 4.45 : 4.65;
+  model.position.z = impact ? 3.05 : 3.15;
   model.position.y = 0;
   model.rotation.set(0, 0, 0);
   if (impact) {
@@ -117,7 +117,7 @@ proto.start = function () {
   this.__ivanEdgeImpact = false;
   this.runner.position.z = 1.2;
   const model = this.__ivanModel as T.Group | undefined;
-  if (model) { model.visible = true; model.position.set(this.runner.position.x, 0, 4.65); model.rotation.set(0, 0, 0); }
+  if (model) { model.visible = true; model.position.set(this.runner.position.x, 0, 3.15); model.rotation.set(0, 0, 0); }
 };
 
 proto.step = function (dt: number) {
@@ -125,21 +125,26 @@ proto.step = function (dt: number) {
   this.__ivanEdgeImpact = false;
   originalStep.call(this, dt);
 
-  if (edgeImpact && this.mode === 'playing' && !this.__ivanLifeLost) {
+  const model = this.__ivanModel as T.Group | undefined;
+  if (!model) return;
+  if (this.mode !== 'playing') {
+    model.visible = false;
+    this.__ivanChase = false;
+    return;
+  }
+
+  if (edgeImpact && !this.__ivanLifeLost) {
     this.__ivanLifeLost = true;
     startIvanScene.call(this, true);
   }
 
-  const model = this.__ivanModel as T.Group | undefined;
-  if (!model || this.mode !== 'playing') return;
-
   if (!this.__ivanChase) {
-    // Keep Ivan clearly visible close behind the player at the beginning,
-    // then let him settle farther back after the opening stretch.
+    // Keep Ivan in the camera's useful depth range instead of drifting toward
+    // the camera, where the desktop perspective cuts off the lower body.
     const opening = Math.min(1, (this.stats.time as number) / 12);
-    const idleDistance = T.MathUtils.lerp(4.65, 6.6, opening);
-    const idleTargetZ = idleDistance + Math.sin((this.stats.time as number) * 1.5) * .18;
-    model.position.z = T.MathUtils.damp(model.position.z, idleTargetZ, 7, dt);
+    const idleDistance = T.MathUtils.lerp(3.15, 3.8, opening);
+    const idleTargetZ = idleDistance + Math.sin((this.stats.time as number) * 1.5) * .10;
+    model.position.z = T.MathUtils.damp(model.position.z, idleTargetZ, 8, dt);
     model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 8, dt);
     model.visible = true;
     animateIvan(model, this.stats.time as number);
@@ -155,14 +160,14 @@ proto.step = function (dt: number) {
   this.runner.position.z = targetRunnerZ;
 
   const ivanTargetZ = t < 1.25
-    ? T.MathUtils.lerp(4.45, 3.25, T.MathUtils.smoothstep(t / 1.25, 0, 1))
-    : T.MathUtils.lerp(3.25, 6.5, T.MathUtils.smoothstep(Math.min(1, (t - 1.25) / 2.8), 0, 1));
+    ? T.MathUtils.lerp(3.05, 2.5, T.MathUtils.smoothstep(t / 1.25, 0, 1))
+    : T.MathUtils.lerp(2.5, 3.8, T.MathUtils.smoothstep(Math.min(1, (t - 1.25) / 2.8), 0, 1));
   model.position.z = T.MathUtils.damp(model.position.z, ivanTargetZ, 8, dt);
   model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 12, dt);
   model.visible = true; animateIvan(model, t);
 
   if (t >= 5.1) {
-    model.position.z = 6.6;
+    model.position.z = 3.8;
     this.__ivanChase = false;
     this.__ivanSceneTime = 0;
     this.runner.position.z = 1.2;
