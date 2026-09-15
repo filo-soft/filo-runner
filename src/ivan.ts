@@ -2,14 +2,16 @@ import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RunnerGame } from './game';
 
-const IVAN_BASE_GAP = 14;
-const IVAN_START_GAP = 7;
+const IVAN_BASE_GAP = 13;
+const IVAN_START_GAP = 9;
+const IVAN_INTRO_Z_GAP = 13.5;
+const IVAN_INTRO_DURATION = 1.7;
 const IVAN_CATCH_GAP = 1;
-const IVAN_HIT_PENALTY = 2.8;
-const IVAN_COMBO_MULT = 0.4;
-const IVAN_RECOVERY_RATE = 0.6;
+const IVAN_HIT_PENALTY = 3.2;
+const IVAN_COMBO_MULT = 0.25;
+const IVAN_RECOVERY_RATE = 0.35;
 const IVAN_LANE_LAG = 3.2;
-const IVAN_VISIBLE_GAP = 7.5;
+const IVAN_VISIBLE_GAP = 6.7;
 const IVAN_MODEL_HEIGHT = 2.45;
 const IVAN_DAMP = 10;
 const PLAYER_Z = 1.2;
@@ -150,11 +152,11 @@ const animateFallback = (game: IvanGame) => {
   } | undefined;
   if (!parts) return;
   const phase = Number((game as any).phase) || 0;
-  const stride = Math.sin(phase) * .65;
+  const stride = Math.sin(phase) * .75;
   parts.leftLeg.rotation.x = stride;
   parts.rightLeg.rotation.x = -stride;
-  parts.leftArm.rotation.x = -stride * .8;
-  parts.rightArm.rotation.x = stride * .8;
+  parts.leftArm.rotation.x = -stride * .9;
+  parts.rightArm.rotation.x = stride * .9;
 };
 
 const installFallback = (game: IvanGame) => {
@@ -163,7 +165,7 @@ const installFallback = (game: IvanGame) => {
   const visual = buildFallbackIvan(game);
   visual.userData.kind = 'fallback';
   root.add(visual);
-  root.position.set(0, groundOf(game), PLAYER_Z + IVAN_START_GAP);
+  root.position.set(0, groundOf(game), PLAYER_Z + IVAN_INTRO_Z_GAP);
   root.rotation.y = Math.PI;
   root.visible = false;
   game.scene.add(root);
@@ -218,7 +220,7 @@ const resetIvan = (game: IvanGame) => {
   game.__ivanReason = undefined;
   if (game.__ivanRoot) {
     game.__ivanRoot.visible = game.mode === 'playing';
-    game.__ivanRoot.position.set(runner.position.x, groundOf(game), runner.position.z + IVAN_START_GAP);
+    game.__ivanRoot.position.set(runner.position.x, groundOf(game), runner.position.z + IVAN_INTRO_Z_GAP);
     game.__ivanRoot.rotation.y = Math.PI;
   }
 };
@@ -239,12 +241,16 @@ const tickIvan = (game: IvanGame, dt: number) => {
 
   const currentLane = game.__ivanLaneX ?? runner.position.x;
   game.__ivanLaneX = currentLane + ((runner.position.x - currentLane) / IVAN_LANE_LAG) * dt;
-  game.__ivanIntro = Math.min(1, (game.__ivanIntro ?? 0) + dt / 1.25);
 
+  game.__ivanIntro = Math.min(IVAN_INTRO_DURATION, (game.__ivanIntro ?? 0) + dt);
+  const introT = T.MathUtils.smoothstep(game.__ivanIntro / IVAN_INTRO_DURATION, 0, 1);
   const stateGap = game.__ivanGap ?? IVAN_START_GAP;
-  const easedGap = game.__ivanIntro < 1 ? T.MathUtils.lerp(IVAN_START_GAP, stateGap, game.__ivanIntro) : stateGap;
-  const visibleGap = Math.min(easedGap, IVAN_VISIBLE_GAP);
-  const targetZ = runner.position.z + visibleGap;
+  const pursuitGap = Math.min(stateGap, IVAN_VISIBLE_GAP);
+  const targetGap = game.__ivanIntro < IVAN_INTRO_DURATION
+    ? T.MathUtils.lerp(IVAN_INTRO_Z_GAP, pursuitGap, introT)
+    : pursuitGap;
+  const targetZ = runner.position.z + targetGap;
+
   root.position.x = T.MathUtils.damp(root.position.x, game.__ivanLaneX, IVAN_DAMP, dt);
   root.position.y = T.MathUtils.damp(root.position.y, groundOf(game), IVAN_DAMP, dt);
   root.position.z = T.MathUtils.damp(root.position.z, targetZ, IVAN_DAMP, dt);
@@ -320,7 +326,7 @@ proto.step = function (dt: number) {
     game.mode = 'playing';
     const nextCombo = (game.__ivanComboHits || 0) + 1;
     game.__ivanComboHits = nextCombo;
-    game.__ivanGap = Math.max(0, (game.__ivanGap ?? IVAN_START_GAP) - IVAN_HIT_PENALTY * (1 + nextCombo * IVAN_COMBO_MULT));
+    game.__ivanGap = Math.max(0, (game.__ivanGap ?? IVAN_START_GAP) - IVAN_HIT_PENALTY * (1 + Math.max(0, nextCombo - 1) * IVAN_COMBO_MULT));
 
     if ((game.__ivanGap ?? 0) <= IVAN_CATCH_GAP) {
       previousDie.call(this);
