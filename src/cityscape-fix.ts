@@ -33,7 +33,9 @@ const addSideLogo = (g: T.Group, side: 1 | -1, w: number, h: number) => {
   const backing = new T.Mesh(new T.BoxGeometry(.12, .64, 3.46), new T.MeshStandardMaterial({ color: '#2457a6', roughness: .7 }));
   backing.castShadow = true; backing.receiveShadow = true; sign.add(backing);
   const panel = new T.Mesh(new T.PlaneGeometry(3.22, .478), new T.MeshBasicMaterial({ map: logoTexture, transparent: true, side: T.DoubleSide, depthWrite: false }));
-  panel.rotation.y = Math.PI / 2; panel.position.x = side * .071; sign.add(panel);
+  // Face the road. Using the corresponding rotation for each side keeps the wordmark readable instead of mirrored.
+  panel.rotation.y = side * Math.PI / 2;
+  panel.position.x = side * .071; sign.add(panel);
   sign.position.set(side * (w / 2 + .075), h * .56, 0);
   g.add(sign);
 };
