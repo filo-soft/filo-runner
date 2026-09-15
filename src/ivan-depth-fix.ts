@@ -5,12 +5,11 @@ const proto = RunnerGame.prototype as any;
 const originalStart = proto.start;
 const originalStep = proto.step;
 
-// Camera is on positive Z; philosopher is at z ≈ 1.2.
-// Ivan stays on the smaller-Z side so he is visually behind, not between
-// the camera and the philosopher.
-const IVAN_BACK_Z = -0.35;
-const IVAN_CLOSE_Z = -0.15;
-const IVAN_RETREAT_Z = -2.2;
+// Camera is on positive Z; philosopher stays at z = 1.2.
+// Keep Ivan clearly on the farther, smaller-Z side with a large visual gap.
+const IVAN_BACK_Z = -1.2;
+const IVAN_CLOSE_Z = -0.8;
+const IVAN_RETREAT_Z = -3.5;
 const IVAN_INTRO = 4.5;
 const IVAN_RETREAT = 1.8;
 
@@ -61,14 +60,14 @@ const enforceDepth = (game: any, model: T.Group, dt: number) => {
     return;
   }
 
-  // Collision/chase scene: smooth approach, but never reaches the philosopher's z.
+  // Collision/chase scene: Ivan approaches smoothly but never comes close to the philosopher.
   model.visible = true;
   const t = Number(game.__ivanSceneTime || 0);
   let targetZ: number;
   if (t < 1.1) {
     targetZ = T.MathUtils.lerp(IVAN_BACK_Z, IVAN_CLOSE_Z, T.MathUtils.smoothstep(t / 1.1, 0, 1));
   } else {
-    targetZ = T.MathUtils.lerp(IVAN_CLOSE_Z, IVAN_BACK_Z - 0.2, T.MathUtils.smoothstep(Math.min(1, (t - 1.1) / 1.9), 0, 1));
+    targetZ = T.MathUtils.lerp(IVAN_CLOSE_Z, IVAN_BACK_Z - 0.3, T.MathUtils.smoothstep(Math.min(1, (t - 1.1) / 1.9), 0, 1));
   }
 
   const smoothedZ = T.MathUtils.damp(model.position.z, targetZ, 10, dt);
