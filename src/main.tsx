@@ -12,6 +12,8 @@ import "./game-features";
 import "./late-game-fix";
 import "./economy-fix";
 import "./chaser-fix";
+import "./ivan-style-fix";
+import "./branding-fix";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(
