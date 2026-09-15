@@ -80,6 +80,99 @@ const animateIvan = function (model: T.Group, t: number) {
   model.position.y = Math.abs(Math.sin(t * 11.5)) * .025;
 };
 
+const getObstacleMaterial = (item: any) => {
+  let result: T.Material | undefined;
+  item.mesh.traverse((object: T.Object3D) => {
+    if (result) return;
+    const mesh = object as T.Mesh;
+    if (!mesh.isMesh) return;
+    const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+    if (material) result = material;
+  });
+  return (result?.clone?.() || new T.MeshStandardMaterial({ color: '#d8c6a7', roughness: .9 })) as T.Material;
+};
+
+const smashIvanObstacle = function (game: any, item: any) {
+  if (!item || item.mesh?.userData?.ivanSmashed || item.type === 'coin') return false;
+  item.mesh.userData.ivanSmashed = true;
+
+  const bounds = new T.Box3().setFromObject(item.mesh);
+  const size = new T.Vector3(); bounds.getSize(size);
+  const center = new T.Vector3(); bounds.getCenter(center);
+  const material = getObstacleMaterial(item);
+  const count = item.type === 'gate' ? 14 : item.type === 'wall' ? 12 : 8;
+  const fragments: any[] = game.__ivanDebris || (game.__ivanDebris = []);
+
+  item.mesh.visible = false;
+  item.checked = true;
+
+  for (let i = 0; i < count; i++) {
+    const sx = Math.max(.16, size.x * (.18 + Math.random() * .24));
+    const sy = Math.max(.16, size.y * (.16 + Math.random() * .25));
+    const sz = Math.max(.16, size.z * (.16 + Math.random() * .24));
+    const piece = new T.Mesh(new T.BoxGeometry(sx, sy, sz), material.clone());
+    piece.position.set(
+      center.x + (Math.random() - .5) * Math.max(.2, size.x * .55),
+      center.y + (Math.random() - .5) * Math.max(.2, size.y * .45),
+      center.z + (Math.random() - .5) * Math.max(.2, size.z * .5)
+    );
+    piece.rotation.set(Math.random() * .8, Math.random() * .8, Math.random() * .8);
+    piece.castShadow = true; piece.receiveShadow = true;
+    game.scene.add(piece);
+    fragments.push({
+      mesh: piece,
+      velocity: new T.Vector3((Math.random() - .5) * 5.5, Math.random() * 3.6 + .8, (Math.random() - .5) * 5),
+      spin: new T.Vector3((Math.random() - .5) * 7, (Math.random() - .5) * 7, (Math.random() - .5) * 7),
+      life: .72 + Math.random() * .45
+    });
+  }
+
+  game.burst?.(center, false, item.type === 'gate' ? 16 : 10);
+  game.shake = Math.max(game.shake || 0, item.type === 'gate' ? .14 : .09);
+  game.tone?.(95, .08, 48, 'square');
+  return true;
+};
+
+const updateIvanDebris = function (game: any, dt: number) {
+  const fragments = (game.__ivanDebris || []) as any[];
+  for (let i = fragments.length - 1; i >= 0; i--) {
+    const p = fragments[i];
+    p.life -= dt;
+    p.velocity.y -= dt * 8;
+    p.mesh.position.addScaledVector(p.velocity, dt);
+    p.mesh.rotation.x += p.spin.x * dt;
+    p.mesh.rotation.y += p.spin.y * dt;
+    p.mesh.rotation.z += p.spin.z * dt;
+    if (p.life <= 0) {
+      game.scene.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      if (p.mesh.material?.dispose) p.mesh.material.dispose();
+      fragments.splice(i, 1);
+    }
+  }
+};
+
+const findIvanObstacle = function (game: any, model: T.Group) {
+  const items = (game.items || []) as any[];
+  const laneX = game.runner.position.x;
+  const ivanZ = model.position.z;
+  let best: any = undefined;
+  let bestDistance = Infinity;
+
+  for (const item of items) {
+    if (!item || item.mesh?.userData?.ivanSmashed || item.type === 'coin') continue;
+    if (item.type === 'wall' || item.type === 'gate') {
+      if (Math.abs(item.mesh.position.x - laneX) > 2.0) continue;
+    } else if (Math.abs(item.mesh.position.x - laneX) > .95) {
+      continue;
+    }
+    const distance = item.mesh.position.z - ivanZ;
+    if (distance < -.65 || distance > .8) continue;
+    if (distance < bestDistance) { best = item; bestDistance = distance; }
+  }
+  return best;
+};
+
 const startIvanScene = function (impact = false) {
   if (this.mode !== 'playing') return;
   if (!this.__ivanModel) this.__ivanModel = makeIvan(this);
@@ -124,12 +217,14 @@ proto.start = function () {
   this.__ivanSceneTime = 0;
   this.__ivanRunnerKick = 0;
   this.__ivanEdgeImpact = false;
+  this.__ivanDebris = [];
   this.runner.position.z = 1.2;
   const model = this.__ivanModel as T.Group | undefined;
   if (model) { model.visible = true; model.position.set(this.runner.position.x, 0, -4.1); model.rotation.set(0, 0, 0); }
 };
 
 proto.step = function (dt: number) {
+  updateIvanDebris(this, dt);
   const edgeImpact = !!this.__ivanEdgeImpact || !!this.__edgeBump;
   this.__ivanEdgeImpact = false;
   originalStep.call(this, dt);
@@ -152,6 +247,9 @@ proto.step = function (dt: number) {
     model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 8, dt);
     model.visible = true;
     animateIvan(model, this.stats.time as number);
+
+    const obstacle = findIvanObstacle(this, model);
+    if (obstacle) smashIvanObstacle(this, obstacle);
     return;
   }
 
@@ -164,7 +262,6 @@ proto.step = function (dt: number) {
   else targetRunnerZ = 1.2;
   this.runner.position.z = targetRunnerZ;
 
-  // Surge from several meters behind, stop just behind the philosopher, then retreat again.
   const ivanTargetZ = t < 1.65
     ? T.MathUtils.lerp(-4.35, .52, T.MathUtils.smoothstep(t / 1.65, 0, 1))
     : T.MathUtils.lerp(.52, -4.4, T.MathUtils.smoothstep(Math.min(1, (t - 1.65) / 3.0), 0, 1));
@@ -172,6 +269,9 @@ proto.step = function (dt: number) {
   model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 11, dt);
   model.visible = true;
   animateIvan(model, t);
+
+  const obstacle = findIvanObstacle(this, model);
+  if (obstacle) smashIvanObstacle(this, obstacle);
 
   if (t >= 5.0) {
     model.position.z = -4.4;
