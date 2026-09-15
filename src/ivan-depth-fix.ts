@@ -5,11 +5,12 @@ const proto = RunnerGame.prototype as any;
 const originalStart = proto.start;
 const originalStep = proto.step;
 
-// Camera is on positive Z; more negative means farther down the track.
-// These values intentionally leave a large visual gap so perspective cannot make Ivan appear ahead.
-const IVAN_BACK_Z = -8.5;
-const IVAN_CLOSE_Z = -7.0;
-const IVAN_FRONT_LIMIT = -6.4;
+// The philosopher is at z ≈ 1.2. Positive Z is physically behind him;
+// negative Z is farther down the track / visually ahead.
+// Keep a deliberate gap so Ivan can never cross the philosopher.
+const IVAN_BACK_Z = 5.0;
+const IVAN_CLOSE_Z = 3.6;
+const IVAN_FRONT_LIMIT = 2.8;
 const IVAN_INTRO = 4.5;
 
 const enforceDepth = (game: any, model: T.Group) => {
@@ -20,9 +21,9 @@ const enforceDepth = (game: any, model: T.Group) => {
   model.visible = active;
   if (!active) return;
 
-  // Hard assignment, not damping: no earlier wrapper can animate Ivan forward.
-  model.position.z = chase ? IVAN_CLOSE_Z : IVAN_BACK_Z;
-  if (model.position.z > IVAN_FRONT_LIMIT) model.position.z = IVAN_FRONT_LIMIT;
+  // Hard assignment every frame. Ivan is always behind the philosopher.
+  const targetZ = chase ? IVAN_CLOSE_Z : IVAN_BACK_Z;
+  model.position.z = Math.max(targetZ, IVAN_FRONT_LIMIT);
   model.position.x = game.runner.position.x;
 
   const ground = Number.isFinite(game.groundY) ? Number(game.groundY) : 0;
@@ -43,6 +44,10 @@ proto.step = function (dt: number) {
   originalStep.call(this, dt);
   const model = this.__ivanModel as T.Group | undefined;
   if (!model) return;
-  if (this.mode === 'playing' && !this.__ivanChase) this.__ivanIntroTime = Number(this.__ivanIntroTime || 0) + dt;
+
+  if (this.mode === 'playing' && !this.__ivanChase) {
+    this.__ivanIntroTime = Number(this.__ivanIntroTime || 0) + dt;
+  }
+
   enforceDepth(this, model);
 };
