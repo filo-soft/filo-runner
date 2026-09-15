@@ -10,7 +10,6 @@ const styleIvan = (root: T.Group) => {
   const blue = new T.MeshStandardMaterial({ color: '#2457a6', roughness: .68 });
   const blueDark = new T.MeshStandardMaterial({ color: '#173d78', roughness: .78 });
   const orange = new T.MeshStandardMaterial({ color: '#e88b2d', roughness: .62 });
-  const white = new T.MeshStandardMaterial({ color: '#f2eee2', roughness: .72 });
   const black = new T.MeshStandardMaterial({ color: '#252b33', roughness: .84 });
 
   root.traverse((object: T.Object3D) => {
@@ -25,23 +24,19 @@ const styleIvan = (root: T.Group) => {
 
   const torso = root.getObjectByName('IvanRoundedTorso') as T.Group | undefined;
   if (torso) {
-    const addCapsule = (x: number, y: number, z: number, radius: number, length: number, mat: T.Material, rotX = 0) => {
+    const addCapsule = (x: number, y: number, z: number, radius: number, length: number, mat: T.Material) => {
       const mesh = new T.Mesh(new T.CapsuleGeometry(radius, length, 6, 14), mat);
       mesh.position.set(x, y, z);
-      mesh.rotation.x = rotX;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       torso.add(mesh);
       return mesh;
     };
-    addCapsule(-.17, 1.14, .245, .027, .22, orange);
-    addCapsule(.17, 1.14, .245, .027, .22, orange);
-    addCapsule(0, .93, .25, .025, .34, white, Math.PI / 2);
+    // Orange is reserved for the construction helmet; the back stays clean blue.
     addCapsule(0, .80, .19, .11, .10, blueDark);
   }
 
-  // The name is placed on the side facing the camera: Ivan runs away from the camera,
-  // so this is his actual back. Keep it bright and readable on the blue jacket.
+  // The name is printed on Ivan's actual back, facing the camera during the chase.
   const badgeCanvas = document.createElement('canvas');
   badgeCanvas.width = 480;
   badgeCanvas.height = 150;
@@ -60,7 +55,6 @@ const styleIvan = (root: T.Group) => {
     const badge = new T.Mesh(new T.PlaneGeometry(.72, .225), mat);
     badge.name = 'IvanBackName';
     badge.position.set(0, 1.12, .305);
-    badge.rotation.set(0, 0, 0);
     torso.add(badge);
   }
 
