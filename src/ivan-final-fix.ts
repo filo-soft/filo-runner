@@ -42,24 +42,21 @@ const positionAndVisibility = (game: any, model: T.Group) => {
   const intro = Number(game.__ivanIntroUntil || 0) > Number(game.stats?.time || 0);
   const chasing = !!game.__ivanChase;
 
-  if (chasing && !game.__ivanPresentationChaseSeen) {
-    game.__ivanPresentationChaseSeen = true;
-  }
+  if (chasing && !game.__ivanPresentationChaseSeen) game.__ivanPresentationChaseSeen = true;
   if (!chasing && game.__ivanPresentationChaseSeen) {
     game.__ivanPresentationChaseSeen = false;
-    if (game.__ivanVisibleUntil === 0 || Number(game.__ivanVisibleUntil || 0) > Number(game.stats?.time || 0)) {
-      game.__ivanVisibleUntil = Number(game.stats?.time || 0) + 0.2;
-    }
+    game.__ivanVisibleUntil = Number(game.stats?.time || 0) - .01;
   }
 
   const visibleWindow = Number(game.__ivanVisibleUntil || 0) > Number(game.stats?.time || 0);
   model.visible = game.mode === 'playing' && (intro || chasing || visibleWindow);
   if (!model.visible) return;
 
-  // Render Ivan clearly behind the philosopher in the track direction.
-  const targetZ = chasing ? runnerZ - 3.15 : runnerZ - 4.35;
+  // The negative-Z side of this scene is farther down the track from the camera.
+  // Keep Ivan behind the philosopher at all times.
+  const targetZ = chasing ? runnerZ - 2.75 : runnerZ - 4.15;
   model.position.z = T.MathUtils.damp(model.position.z, targetZ, 12, 1 / 60);
-  if (model.position.z > runnerZ - 2.5) model.position.z = runnerZ - 2.5;
+  if (model.position.z > runnerZ - 2.25) model.position.z = runnerZ - 2.25;
   model.position.x = game.runner.position.x;
   model.position.y = 0;
 };
@@ -74,26 +71,21 @@ proto.start = function () {
 };
 
 proto.step = function (dt: number) {
-  // Keep the real collision coordinate at 1.2, while the opening shot renders both runners a little deeper.
-  const intro = Number(this.__ivanIntroUntil || 0) > Number(this.stats?.time || 0);
-  const savedRunnerZ = this.runner.position.z;
-  if (intro && !this.__ivanChase) this.runner.position.z = 1.2;
-
   const wasChasing = !!this.__ivanChase;
+  const introBefore = Number(this.__ivanIntroUntil || 0) > Number(this.stats?.time || 0);
+  // Preserve the game's actual collision coordinate; the opening-only visual shift happens after simulation.
+  if (!this.__ivanChase) this.runner.position.z = 1.2;
+
   originalStep.call(this, dt);
 
-  if (this.__ivanChase && !wasChasing) {
-    this.__ivanVisibleUntil = Number(this.stats.time || 0) + 4.2;
-  }
-  if (!this.__ivanChase && wasChasing) {
-    this.__ivanVisibleUntil = Number(this.stats.time || 0) - .01;
-  }
+  if (this.__ivanChase && !wasChasing) this.__ivanVisibleUntil = Number(this.stats.time || 0) + 4.2;
+  if (!this.__ivanChase && wasChasing) this.__ivanVisibleUntil = Number(this.stats.time || 0) - .01;
 
   const model = this.__ivanModel as T.Group | undefined;
   if (model && this.mode === 'playing') {
     positionAndVisibility(this, model);
-    // During the opening only, render the philosopher slightly farther down the track like the impact framing.
-    if (intro && !this.__ivanChase) this.runner.position.z = .28;
+    // Only the opening framing moves the philosopher back visually; collision and gameplay remain at z=1.2.
+    if (introBefore && !this.__ivanChase) this.runner.position.z = .28;
+    else if (!this.__ivanChase) this.runner.position.z = 1.2;
   }
-  if (!intro && !this.__ivanChase && savedRunnerZ !== 0.28) this.runner.position.z = savedRunnerZ === 1.2 ? 1.2 : this.runner.position.z;
 };

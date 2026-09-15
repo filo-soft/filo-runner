@@ -3,7 +3,6 @@ import { RunnerGame } from './game';
 
 const proto = RunnerGame.prototype as any;
 const originalBuildWorld = proto.buildWorld;
-const originalFrame = proto.frame;
 
 const cityMaterials = {
   light: new T.MeshStandardMaterial({ color: '#d9d0c4', roughness: .9 }),
@@ -35,7 +34,6 @@ const makeApartment = (variant: number) => {
   const h = floors * floorH;
   const body = variant % 3 === 0 ? cityMaterials.light : variant % 3 === 1 ? cityMaterials.dark : cityMaterials.warm;
   addBox(g, new T.BoxGeometry(1,1,1), body, 0, h / 2, 0, w, h, d);
-  // Offset vertical cores and warm facade accents, inspired by Kirov mid-rise brick architecture.
   const coreX = variant % 2 ? -w * .2 : w * .18;
   addBox(g, new T.BoxGeometry(1,1,1), cityMaterials.glass, coreX, h * .52, d / 2 + .025, w * .17, h * .78, .05);
   addBox(g, new T.BoxGeometry(1,1,1), cityMaterials.accent, -w * .38, h * .54, d / 2 + .035, w * .08, h * .7, .06);
@@ -46,13 +44,10 @@ const makeApartment = (variant: number) => {
     const y = .55 + floor * floorH;
     for (let col = 0; col < 5; col++) {
       const x = -w * .36 + col * w * .18;
-      const skipCore = Math.abs(x - coreX) < w * .1;
-      if (!skipCore) addBox(g, windowGeo, cityMaterials.glass, x, y, d / 2 + .055, 1, 1, 1);
+      if (Math.abs(x - coreX) < w * .1) continue;
+      addBox(g, windowGeo, cityMaterials.glass, x, y, d / 2 + .055, 1, 1, 1);
     }
-    if ((floor + variant) % 2 === 0) {
-      const balcony = addBox(g, new T.BoxGeometry(1,1,1), cityMaterials.wood, -w * .18, y - .12, d / 2 + .1, w * .16, .08, .45);
-      balcony.castShadow = false;
-    }
+    if ((floor + variant) % 2 === 0) addBox(g, new T.BoxGeometry(1,1,1), cityMaterials.wood, -w * .18, y - .12, d / 2 + .1, w * .16, .08, .45);
   }
   for (let floor = 0; floor < floors; floor++) {
     const y = .55 + floor * floorH;
@@ -62,8 +57,7 @@ const makeApartment = (variant: number) => {
     }
   }
   addBox(g, new T.BoxGeometry(1,1,1), cityMaterials.dark, 0, .12, d / 2 + .08, w * .82, .24, .12);
-  const roof = addBox(g, new T.BoxGeometry(1,1,1), cityMaterials.dark, 0, h + .12, 0, w * 1.02, .22, d * 1.02);
-  roof.castShadow = true;
+  addBox(g, new T.BoxGeometry(1,1,1), cityMaterials.dark, 0, h + .12, 0, w * 1.02, .22, d * 1.02);
   return g;
 };
 
@@ -89,7 +83,7 @@ const populateCity = (game: any) => {
     [-13.0, -118, 3], [13.5, -131, 4], [-12.8, -144, 5], [13.2, -157, 0]
   ];
   for (const [x, z, variant] of specs) {
-    const b = makeApartment(variant as number); b.position.set(x as number, 0, z as number); b.userData.baseX = x; b.userData.baseZ = z; b.userData.variant = variant; blocks.push(b); game.scene.add(b);
+    const b = makeApartment(variant as number); b.position.set(x as number, 0, z as number); b.userData.baseX = x; b.userData.baseZ = z; blocks.push(b); game.scene.add(b);
   }
   const plazaSpecs = [[-12.5, -61], [12.7, -116], [-12.5, -170]];
   for (const [x, z] of plazaSpecs) {
@@ -107,10 +101,8 @@ proto.buildWorld = function () {
 const originalStart = proto.start;
 proto.start = function () {
   originalStart.call(this);
-  if (this.__cityBlocks || this.__cityPlazas) {
-    for (const b of (this.__cityBlocks || [])) b.visible = true;
-    for (const p of (this.__cityPlazas || [])) p.visible = true;
-  }
+  for (const b of (this.__cityBlocks || []) as T.Group[]) b.visible = true;
+  for (const p of (this.__cityPlazas || []) as T.Group[]) p.visible = true;
 };
 
 const updateCity = (game: any) => {
