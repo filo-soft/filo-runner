@@ -15,8 +15,7 @@ import "./economy-fix";
 import "./cityscape-fix";
 import "./cityscape-sparse-fix";
 import "./branding-fix";
-import "./ivan";
-import "./ivan-effects";
+import "./hit-protection";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(
