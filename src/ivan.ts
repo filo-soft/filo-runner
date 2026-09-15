@@ -17,9 +17,9 @@ const PLAYER_Z = 1.2;
 type IvanReason = 'hit' | 'ivan';
 type IvanGame = RunnerGame & {
   __ivanRoot?: T.Group;
+  __ivanVisual?: T.Group;
   __ivanMixer?: T.AnimationMixer;
-  __ivanLoaded?: boolean;
-  __ivanLoadFailed?: boolean;
+  __ivanModelReady?: boolean;
   __ivanGap?: number;
   __ivanComboHits?: number;
   __ivanLaneX?: number;
@@ -40,62 +40,100 @@ const runnerOf = (game: IvanGame) => (game as any).runner as T.Group;
 const groundOf = (game: IvanGame) => Number((game as any).groundY) || 0;
 const assetUrl = (name: string) => new URL(`./ivan/${name}`, document.baseURI).href;
 
-const materialsOf = (root: T.Object3D) => {
-  const out: T.Material[] = [];
-  root.traverse((o: T.Object3D) => {
-    const mesh = o as T.Mesh;
-    if (!mesh.isMesh) return;
-    for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
-      if (m && !out.includes(m)) out.push(m);
-    }
-  });
-  return out;
+const ownMaterial = (source: T.MeshStandardMaterial, color: T.ColorRepresentation, roughness = source.roughness, metalness = source.metalness) => {
+  const material = source.clone();
+  material.color.set(color);
+  material.map = source.map || null;
+  material.roughness = roughness;
+  material.metalness = metalness;
+  return material;
 };
 
-const applyPalette = (game: IvanGame, root: T.Object3D) => {
-  const mats = materialsOf(root);
-  const allNeutral = mats.length > 0 && mats.every(m => {
-    const color = (m as T.MeshStandardMaterial).color;
-    if (!color) return false;
-    const hsl = { h: 0, s: 0, l: 0 };
-    color.getHSL(hsl);
-    return hsl.s < .08;
-  });
-  if (!allNeutral) return;
+const buildFallbackIvan = (game: IvanGame) => {
+  const fallback = new T.Group();
+  fallback.name = 'IvanFallback';
 
-  const marble = (game as any).marble as T.MeshStandardMaterial | undefined;
-  const blue = (game as any).blue as T.MeshStandardMaterial | undefined;
-  if (!marble || !blue) return;
+  const marbleSource = (game as any).marble as T.MeshStandardMaterial;
+  const blueSource = (game as any).blue as T.MeshStandardMaterial;
+  const marble = ownMaterial(marbleSource, '#f2eee3', .7, .05);
+  const blue = ownMaterial(blueSource, '#38309e', .4, .25);
+  const skin = ownMaterial(marbleSource, '#d5c2ac', .82, .02);
 
-  let index = 0;
-  root.traverse((o: T.Object3D) => {
-    const mesh = o as T.Mesh;
-    if (!mesh.isMesh) return;
-    const name = mesh.name.toLowerCase();
-    const bluePart = /(shirt|jacket|suit|tie|pants|trouser|shoe|brief|case|bag|accent)/i.test(name) || index % 6 === 0;
-    const replacement = bluePart ? blue : marble;
-    mesh.material = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).map(() => replacement.clone());
-    index++;
+  const mesh = (geo: T.BufferGeometry, mat: T.Material, parent: T.Object3D, x = 0, y = 0, z = 0) => {
+    const m = new T.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    parent.add(m);
+    return m;
+  };
+
+  const body = new T.Group();
+  body.name = 'IvanBody';
+  fallback.add(body);
+
+  mesh(new T.CapsuleGeometry(.34, .72, 8, 18), marble, body, 0, 1.28, 0);
+  const shoulder = mesh(new T.SphereGeometry(.43, 18, 12), marble, body, 0, 1.67, .02);
+  shoulder.scale.set(1, .62, .72);
+
+  mesh(new T.SphereGeometry(.29, 20, 16), skin, body, 0, 2.18, .02);
+  const hair = mesh(new T.SphereGeometry(.305, 16, 10, 0, Math.PI * 2, 0, Math.PI * .48), marble, body, 0, 2.3, .005);
+  hair.scale.set(1.02, .72, 1.02);
+
+  const nose = mesh(new T.ConeGeometry(.07, .16, 8), skin, body, 0, 2.17, -.285);
+  nose.rotation.x = Math.PI / 2;
+
+  const leftLeg = new T.Group();
+  const rightLeg = new T.Group();
+  leftLeg.position.set(-.16, .84, 0);
+  rightLeg.position.set(.16, .84, 0);
+  fallback.add(leftLeg, rightLeg);
+  mesh(new T.CapsuleGeometry(.095, .48, 6, 10), blue, leftLeg, 0, -.26, 0);
+  mesh(new T.CapsuleGeometry(.095, .48, 6, 10), blue, rightLeg, 0, -.26, 0);
+
+  const leftArm = new T.Group();
+  const rightArm = new T.Group();
+  leftArm.name = 'IvanLeftArm';
+  rightArm.name = 'IvanRightArm';
+  leftArm.position.set(-.42, 1.62, 0);
+  rightArm.position.set(.42, 1.62, 0);
+  fallback.add(leftArm, rightArm);
+  mesh(new T.CapsuleGeometry(.085, .42, 6, 10), marble, leftArm, 0, -.25, 0);
+  mesh(new T.CapsuleGeometry(.085, .42, 6, 10), marble, rightArm, 0, -.25, 0);
+  mesh(new T.SphereGeometry(.1, 12, 8), skin, leftArm, 0, -.55, 0);
+  mesh(new T.SphereGeometry(.1, 12, 8), skin, rightArm, 0, -.55, 0);
+
+  const drape = mesh(new T.PlaneGeometry(.95, 1.45, 10, 12), blue, body, .08, 1.32, -.25);
+  drape.rotation.set(.04, 0, -.08);
+  drape.scale.set(1, 1, .9);
+  drape.castShadow = true;
+  drape.receiveShadow = true;
+
+  fallback.userData.ivanParts = { leftLeg, rightLeg, leftArm, rightArm };
+  fallback.traverse((o: T.Object3D) => {
+    if (o instanceof T.Mesh) o.frustumCulled = false;
   });
+
+  return fallback;
+};
+
+const fitModel = (model: T.Object3D) => {
+  const box = new T.Box3().setFromObject(model);
+  const size = new T.Vector3();
+  box.getSize(size);
+  if (size.y <= .01) return;
+  model.scale.setScalar(IVAN_MODEL_HEIGHT / size.y);
+  const fitted = new T.Box3().setFromObject(model);
+  model.position.y -= fitted.min.y;
 };
 
 const setupAnimation = (game: IvanGame, model: T.Object3D, animation: GLTF | undefined) => {
-  const clip = animation?.animations?.[0] || (model as any).animations?.[0];
-  if (!clip) {
-    console.warn('[IVAN] No run animation clip available.');
-    return;
-  }
-
+  const clip = animation?.animations?.[0];
+  if (!clip) return;
   const bones = new Set<string>();
   model.traverse((o: T.Object3D) => { if (o instanceof T.Bone) bones.add(o.name); });
   const targets = [...new Set(clip.tracks.map(t => t.name.split('.')[0].split(':')[0]))];
-  const missing = targets.filter(name => !bones.has(name));
-  console.log('[IVAN] animation:', { name: clip.name, duration: clip.duration, boneCount: bones.size, missing });
-  if (missing.length) {
-    console.warn('[IVAN] Slow Run1.glb is not directly compatible with ivan1.glb; keeping the model visible without retargeting.');
-    return;
-  }
-
+  if (targets.some(name => !bones.has(name))) return;
   const mixer = new T.AnimationMixer(model);
   const action = mixer.clipAction(clip);
   action.reset();
@@ -104,57 +142,70 @@ const setupAnimation = (game: IvanGame, model: T.Object3D, animation: GLTF | und
   game.__ivanMixer = mixer;
 };
 
-const loadIvan = async (game: IvanGame) => {
-  if (game.__ivanLoaded || game.__ivanLoadFailed) return;
-  game.__ivanLoaded = true;
-  const loader = new GLTFLoader();
+const animateFallback = (game: IvanGame) => {
+  const fallback = game.__ivanVisual;
+  if (!fallback || fallback.userData.kind !== 'fallback') return;
+  const parts = fallback.userData.ivanParts as {
+    leftLeg: T.Group; rightLeg: T.Group; leftArm: T.Group; rightArm: T.Group;
+  } | undefined;
+  if (!parts) return;
+  const phase = Number((game as any).phase) || 0;
+  const stride = Math.sin(phase) * .65;
+  parts.leftLeg.rotation.x = stride;
+  parts.rightLeg.rotation.x = -stride;
+  parts.leftArm.rotation.x = -stride * .8;
+  parts.rightArm.rotation.x = stride * .8;
+};
 
-  let modelGltf: GLTF;
-  try {
-    modelGltf = await loader.loadAsync(assetUrl('ivan1.glb'));
-  } catch (error) {
-    game.__ivanLoadFailed = true;
-    console.error('[IVAN] Model load failed:', assetUrl('ivan1.glb'), error);
-    return;
-  }
-
-  const runner = runnerOf(game);
+const installFallback = (game: IvanGame) => {
   const root = new T.Group();
   root.name = 'IvanWorldRoot';
-  const model = modelGltf.scene;
-  model.name = 'IvanGLBModel';
-  root.add(model);
-
-  const box = new T.Box3().setFromObject(model);
-  const size = new T.Vector3();
-  box.getSize(size);
-  if (size.y > .01) {
-    const scale = IVAN_MODEL_HEIGHT / size.y;
-    model.scale.setScalar(scale);
-    model.position.y = -box.min.y * scale;
-  }
-
-  root.position.set(runner.position.x, groundOf(game), runner.position.z + IVAN_START_GAP);
+  const visual = buildFallbackIvan(game);
+  visual.userData.kind = 'fallback';
+  root.add(visual);
+  root.position.set(0, groundOf(game), PLAYER_Z + IVAN_START_GAP);
   root.rotation.y = Math.PI;
   root.visible = false;
-  root.traverse((o: T.Object3D) => {
-    const mesh = o as T.Mesh;
-    if (mesh.isMesh) { mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; }
-  });
-  applyPalette(game, root);
   game.scene.add(root);
   game.__ivanRoot = root;
+  game.__ivanVisual = visual;
+};
 
+const replaceFallbackWithGlb = (game: IvanGame, modelGltf: GLTF) => {
+  const root = game.__ivanRoot;
+  if (!root) return;
+  const old = game.__ivanVisual;
+  const model = modelGltf.scene;
+  model.name = 'IvanGLBModel';
+  model.userData.kind = 'glb';
+  fitModel(model);
+  model.traverse((o: T.Object3D) => {
+    const mesh = o as T.Mesh;
+    if (mesh.isMesh) {
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+    }
+  });
+  root.add(model);
+  game.__ivanVisual = model as T.Group;
+  game.__ivanModelReady = true;
+  if (old) root.remove(old);
+};
+
+const loadGlb = async (game: IvanGame) => {
+  const loader = new GLTFLoader();
   try {
-    const animationGltf = await loader.loadAsync(assetUrl('Slow Run1.glb'));
-    setupAnimation(game, model, animationGltf);
+    const modelGltf = await loader.loadAsync(assetUrl('ivan1.glb'));
+    replaceFallbackWithGlb(game, modelGltf);
+    try {
+      const animationGltf = await loader.loadAsync(assetUrl('Slow Run1.glb'));
+      if (game.__ivanVisual) setupAnimation(game, game.__ivanVisual, animationGltf);
+    } catch (error) {
+      console.warn('[IVAN] Run animation unavailable; model remains active.', error);
+    }
   } catch (error) {
-    console.warn('[IVAN] Run animation failed to load; model stays active:', assetUrl('Slow Run1.glb'), error);
-  }
-
-  if (game.mode === 'playing') {
-    root.visible = true;
-    root.position.set(runner.position.x, groundOf(game), runner.position.z + IVAN_START_GAP);
+    console.warn('[IVAN] GLB unavailable; using built-in fallback character.', error);
   }
 };
 
@@ -181,6 +232,7 @@ const tickIvan = (game: IvanGame, dt: number) => {
   if (!root || game.mode !== 'playing') return;
   const runner = runnerOf(game);
   if (game.__ivanMixer) game.__ivanMixer.update(dt);
+  animateFallback(game);
 
   game.__ivanGap = Math.min(IVAN_BASE_GAP, (game.__ivanGap ?? IVAN_START_GAP) + IVAN_RECOVERY_RATE * dt);
   if ((game.__ivanGap ?? 0) >= IVAN_BASE_GAP) game.__ivanComboHits = 0;
@@ -190,10 +242,9 @@ const tickIvan = (game: IvanGame, dt: number) => {
   game.__ivanIntro = Math.min(1, (game.__ivanIntro ?? 0) + dt / 1.25);
 
   const stateGap = game.__ivanGap ?? IVAN_START_GAP;
-  const easedGap = game.__ivanIntro! < 1 ? T.MathUtils.lerp(IVAN_START_GAP, stateGap, game.__ivanIntro!) : stateGap;
+  const easedGap = game.__ivanIntro < 1 ? T.MathUtils.lerp(IVAN_START_GAP, stateGap, game.__ivanIntro) : stateGap;
   const visibleGap = Math.min(easedGap, IVAN_VISIBLE_GAP);
   const targetZ = runner.position.z + visibleGap;
-
   root.position.x = T.MathUtils.damp(root.position.x, game.__ivanLaneX, IVAN_DAMP, dt);
   root.position.y = T.MathUtils.damp(root.position.y, groundOf(game), IVAN_DAMP, dt);
   root.position.z = T.MathUtils.damp(root.position.z, targetZ, IVAN_DAMP, dt);
@@ -222,7 +273,9 @@ const emitOver = (game: IvanGame, reason: IvanReason) => {
 
 proto.buildWorld = function () {
   previousBuildWorld.call(this);
-  void loadIvan(this as IvanGame);
+  const game = this as IvanGame;
+  installFallback(game);
+  void loadGlb(game);
 };
 
 proto.menu = function () {
@@ -236,7 +289,8 @@ proto.start = function () {
   const game = this as IvanGame;
   previousStart.call(this);
   resetIvan(game);
-  void loadIvan(game);
+  if (game.__ivanRoot) game.__ivanRoot.visible = true;
+  void loadGlb(game);
 };
 
 proto.die = function () {
@@ -248,7 +302,9 @@ proto.step = function (dt: number) {
   const wasPlaying = game.mode === 'playing';
   const checkedBefore = new Set<any>();
   if (wasPlaying) {
-    for (const item of (((game as any).items || []) as any[])) if (item?.checked) checkedBefore.add(item);
+    for (const item of (((game as any).items || []) as any[])) {
+      if (item?.checked) checkedBefore.add(item);
+    }
   }
 
   const originalOnOver = game.onOver;
@@ -261,11 +317,10 @@ proto.step = function (dt: number) {
 
   const collision = wasPlaying && game.mode === 'over' ? freshObstacleHit(game, checkedBefore) : undefined;
   if (collision) {
-    const hits = (game.__ivanComboHits || 0) + 1;
-    game.__ivanComboHits = hits;
-    game.__ivanGap = Math.max(0, (game.__ivanGap ?? IVAN_START_GAP) - IVAN_HIT_PENALTY * (1 + hits * IVAN_COMBO_MULT));
     game.mode = 'playing';
-    game.__ivanIntro = 1;
+    const nextCombo = (game.__ivanComboHits || 0) + 1;
+    game.__ivanComboHits = nextCombo;
+    game.__ivanGap = Math.max(0, (game.__ivanGap ?? IVAN_START_GAP) - IVAN_HIT_PENALTY * (1 + nextCombo * IVAN_COMBO_MULT));
 
     if ((game.__ivanGap ?? 0) <= IVAN_CATCH_GAP) {
       previousDie.call(this);
