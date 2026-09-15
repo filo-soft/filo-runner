@@ -71,6 +71,7 @@ const loadIvan = function () {
     IVAN_MODEL_URL,
     (gltf) => {
       this.__ivanLoaded = true;
+      this.__ivanLoading = false;
       this.__ivanModel = gltf.scene;
       normalizeIvan(this.__ivanModel);
       this.__ivanMixer = new T.AnimationMixer(this.__ivanModel);
@@ -118,9 +119,12 @@ const playRun = function () {
 };
 
 const attachIvan = function () {
-  if (!this.__ivanModel || this.__ivanAttached) return;
-  this.__ivanAttached = true;
-  this.scene.add(this.__ivanModel);
+  if (!this.__ivanModel) return;
+  if (!this.__ivanAttached) {
+    this.__ivanAttached = true;
+    this.scene.add(this.__ivanModel);
+  }
+  this.__ivanModel.visible = true;
   this.__ivanModel.position.set(this.runner.position.x, 0, 5.2);
   playRun.call(this);
 };
@@ -141,12 +145,13 @@ const startIvanChase = function () {
   if (model) {
     model.visible = true;
     model.position.x = this.runner.position.x;
-    model.position.z = 4.8;
+    model.position.z = 5.2;
     playRun.call(this);
   }
-  this.shake = Math.max(this.shake as number, .09);
-  this.tone?.(180, .08, 95, 'triangle');
-  if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(35);
+  // Strong, unmistakable hit feedback. The run continues with one life lost.
+  this.shake = Math.max(this.shake as number, .32);
+  this.tone?.(120, .16, 70, 'sawtooth');
+  if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(90);
 };
 
 proto.buildWorld = function () {
@@ -154,31 +159,32 @@ proto.buildWorld = function () {
   loadIvan.call(this);
 };
 
-// First collision: continue the run and release Ivan behind the player.
-// A second collision while Ivan is still close ends the run.
+// The first collision costs the single extra life and starts the Ivan chase.
+// The next collision is game over, regardless of whether the GLB has finished loading.
 proto.die = function () {
   if (this.mode !== 'playing') return originalDie.call(this);
-  if (!this.__ivanChase) {
+
+  if (!this.__ivanLifeLost) {
+    this.__ivanLifeLost = true;
     startIvanChase.call(this);
     return;
   }
 
-  const model = this.__ivanModel as T.Object3D | undefined;
-  const distance = model ? model.position.z - 1.2 : 999;
-  if (distance <= 10.5) {
-    hideIvan.call(this);
-    return originalDie.call(this);
-  }
-
-  startIvanChase.call(this);
+  hideIvan.call(this);
+  return originalDie.call(this);
 };
 
 proto.start = function () {
   originalStart.call(this);
+  this.__ivanLifeLost = false;
   this.__ivanChase = false;
   this.__ivanChaseTime = 0;
+  this.__ivanAttached = false;
   const model = this.__ivanModel as T.Object3D | undefined;
-  if (model) model.visible = false;
+  if (model) {
+    model.visible = false;
+    if (model.parent) model.parent.remove(model);
+  }
   loadIvan.call(this);
 };
 
@@ -189,16 +195,18 @@ proto.step = function (dt: number) {
   if (mixer && this.mode === 'playing') mixer.update(dt);
 
   if (!this.__ivanChase || this.mode !== 'playing') return;
-  const model = this.__ivanModel as T.Object3D | undefined;
-  if (!model) return;
 
+  // The model may finish loading after the collision. Attach it as soon as it is ready.
+  if (!this.__ivanModel) return;
+  attachIvan.call(this);
+
+  const model = this.__ivanModel as T.Object3D;
   this.__ivanChaseTime += dt;
-  model.visible = true;
   const t = this.__ivanChaseTime as number;
 
-  // Ivan starts close, then gradually loses ground and disappears after the chase.
-  const targetZ = 4.8 + Math.min(10.5, t * 1.35);
-  model.position.z = T.MathUtils.damp(model.position.z, targetZ, 7, dt);
+  // Ivan runs behind the player and gradually closes the gap for a short chase.
+  const targetZ = 5.2 + Math.min(8.5, t * 1.15);
+  model.position.z = T.MathUtils.damp(model.position.z, targetZ, 8, dt);
   model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 12, dt);
 
   if (t >= 7.8 || model.position.z >= 14.5) hideIvan.call(this);
