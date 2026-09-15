@@ -14,6 +14,7 @@ import "./economy-fix";
 import "./chaser-fix";
 import "./ivan-style-fix";
 import "./ivan-back-fix";
+import "./ivan-position-fix";
 import "./branding-fix";
 import App from "./App";
 
