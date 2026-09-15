@@ -7,10 +7,15 @@ const originalStart = proto.start;
 const originalStep = proto.step;
 const originalDie = proto.die;
 
+const IVAN_BACK_Z = 5.6;
+const IVAN_CLOSE_Z = 2.8;
+const IVAN_MIN_Z = 2.65;
+const IVAN_INTRO_TIME = 4.5;
+const IVAN_CRASH_TIME = 4.0;
+
 const makeIvan = function (game: any) {
   const root = new T.Group();
   root.name = 'IvanChaser';
-  // Ivan should read as a full-size adult runner, not a small mascot.
   root.scale.setScalar(1.12);
 
   const blue = new T.MeshStandardMaterial({ color: '#2457a6', roughness: .72 });
@@ -18,7 +23,6 @@ const makeIvan = function (game: any) {
   const orange = new T.MeshStandardMaterial({ color: '#e88b2d', roughness: .65 });
   const skin = new T.MeshStandardMaterial({ color: '#c9a483', roughness: .94 });
   const black = new T.MeshStandardMaterial({ color: '#252b33', roughness: .84 });
-  const white = new T.MeshStandardMaterial({ color: '#f2eee0', roughness: .72 });
 
   const addCapsule = (parent: T.Object3D, x: number, y: number, z: number, radius: number, length: number, mat: T.Material, rotX = 0, rotZ = 0) => {
     const mesh = new T.Mesh(new T.CapsuleGeometry(radius, length, 6, 14), mat);
@@ -35,7 +39,6 @@ const makeIvan = function (game: any) {
   const torso = new T.Group(); torso.name = 'IvanRoundedTorso'; root.add(torso);
   addCapsule(torso, 0, 1.02, 0, .29, .48, blue);
   addCapsule(torso, 0, 1.30, .015, .20, .15, blueDark);
-  addCapsule(torso, 0, .81, .01, .26, .14, orange);
 
   const head = new T.Group(); head.position.y = 1.76; root.add(head);
   addSphere(head, 0, 0, 0, .26, .29, .24, skin);
@@ -45,8 +48,7 @@ const makeIvan = function (game: any) {
   brim.position.set(0, .105, .02); brim.castShadow = true; brim.receiveShadow = true; helmet.add(brim);
   addCapsule(helmet, 0, .19, -.10, .10, .16, blueDark);
   addCapsule(helmet, 0, .04, .23, .09, .07, black, Math.PI / 2);
-  const lamp = new T.Mesh(new T.CylinderGeometry(.045, .045, .022, 16), white);
-  lamp.rotation.x = Math.PI / 2; lamp.position.set(0, .19, .29); helmet.add(lamp);
+  // No white lamp/circle on the helmet.
 
   const makeLeg = (x: number) => {
     const leg = new T.Group(); leg.position.set(x, .66, 0); root.add(leg);
@@ -94,20 +96,20 @@ const getObstacleMaterial = (item: any) => {
 };
 
 const smashIvanObstacle = function (game: any, item: any) {
-  if (!item || item.mesh?.userData?.ivanSmashed || item.type === 'coin') return false;
+  // Ivan only smashes small gameplay obstacles. Temples, arches, gates and the stepped wall are structures, not smash targets.
+  if (!item || item.mesh?.userData?.ivanSmashed || (item.type !== 'block' && item.type !== 'pillar')) return false;
   item.mesh.userData.ivanSmashed = true;
 
   const bounds = new T.Box3().setFromObject(item.mesh);
   const size = new T.Vector3(); bounds.getSize(size);
   const center = new T.Vector3(); bounds.getCenter(center);
   const material = getObstacleMaterial(item);
-  const count = item.type === 'gate' ? 14 : item.type === 'wall' ? 12 : 8;
   const fragments: any[] = game.__ivanDebris || (game.__ivanDebris = []);
 
   item.mesh.visible = false;
   item.checked = true;
 
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < 8; i++) {
     const sx = Math.max(.16, size.x * (.18 + Math.random() * .24));
     const sy = Math.max(.16, size.y * (.16 + Math.random() * .25));
     const sz = Math.max(.16, size.z * (.16 + Math.random() * .24));
@@ -128,8 +130,8 @@ const smashIvanObstacle = function (game: any, item: any) {
     });
   }
 
-  game.burst?.(center, false, item.type === 'gate' ? 16 : 10);
-  game.shake = Math.max(game.shake || 0, item.type === 'gate' ? .14 : .09);
+  game.burst?.(center, false, 10);
+  game.shake = Math.max(game.shake || 0, .09);
   game.tone?.(95, .08, 48, 'square');
   return true;
 };
@@ -161,42 +163,41 @@ const findIvanObstacle = function (game: any, model: T.Group) {
   let bestDistance = Infinity;
 
   for (const item of items) {
-    if (!item || item.mesh?.userData?.ivanSmashed || item.type === 'coin') continue;
-    if (item.type === 'wall' || item.type === 'gate') {
-      if (Math.abs(item.mesh.position.x - laneX) > 2.0) continue;
-    } else if (Math.abs(item.mesh.position.x - laneX) > .95) {
-      continue;
-    }
+    if (!item || item.mesh?.userData?.ivanSmashed || (item.type !== 'block' && item.type !== 'pillar')) continue;
+    if (Math.abs(item.mesh.position.x - laneX) > .95) continue;
     const distance = item.mesh.position.z - ivanZ;
-    if (distance < -.65 || distance > .8) continue;
+    if (distance < -.7 || distance > .8) continue;
     if (distance < bestDistance) { best = item; bestDistance = distance; }
   }
   return best;
 };
 
-const startIvanScene = function (impact = false) {
+const updateIvanGround = function (game: any, model: T.Group, dt: number) {
+  const targetY = Number.isFinite(game.groundY) ? game.groundY : 0;
+  model.position.y = T.MathUtils.damp(model.position.y, targetY, 14, dt);
+};
+
+const startIvanScene = function () {
   if (this.mode !== 'playing') return;
   if (!this.__ivanModel) this.__ivanModel = makeIvan(this);
   const model = this.__ivanModel as T.Group;
-  this.__ivanSceneTime = impact ? 0 : (this.__ivanSceneTime as number || 0);
-  this.__ivanChase = impact;
+  this.__ivanSceneTime = 0;
+  this.__ivanChase = true;
   model.visible = true;
   model.position.x = this.runner.position.x;
-  model.position.z = impact ? -4.8 : -5.4;
-  model.position.y = 0;
+  model.position.z = IVAN_BACK_Z;
+  model.position.y = this.groundY || 0;
   model.rotation.set(0, 0, 0);
-  if (impact) {
-    this.runner.position.z = .28;
-    this.shake = Math.max(this.shake as number, .32);
-    this.tone?.(120, .16, 70, 'sawtooth');
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(90);
-  }
+  this.shake = Math.max(this.shake as number, .32);
+  this.tone?.(120, .16, 70, 'sawtooth');
+  if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(90);
 };
 
 const hideIvan = function () {
   const model = this.__ivanModel as T.Group | undefined;
   if (model) model.visible = false;
-  this.__ivanChase = false; this.__ivanSceneTime = 0;
+  this.__ivanChase = false;
+  this.__ivanSceneTime = 0;
 };
 
 proto.buildWorld = function () {
@@ -206,8 +207,15 @@ proto.buildWorld = function () {
 
 proto.die = function () {
   if (this.mode !== 'playing') return originalDie.call(this);
-  if (!this.__ivanLifeLost) { this.__ivanLifeLost = true; startIvanScene.call(this, true); return; }
-  hideIvan.call(this); this.runner.position.z = 1.2; return originalDie.call(this);
+  // First hit: show the pursuer for a short recovery scene, just like a chase reset.
+  if (!this.__ivanLifeLost) {
+    this.__ivanLifeLost = true;
+    startIvanScene.call(this);
+    return;
+  }
+  hideIvan.call(this);
+  this.runner.position.z = 1.2;
+  return originalDie.call(this);
 };
 
 proto.start = function () {
@@ -215,18 +223,19 @@ proto.start = function () {
   this.__ivanLifeLost = false;
   this.__ivanChase = false;
   this.__ivanSceneTime = 0;
-  this.__ivanRunnerKick = 0;
-  this.__ivanEdgeImpact = false;
+  this.__ivanIntroTime = 0;
   this.__ivanDebris = [];
   this.runner.position.z = 1.2;
   const model = this.__ivanModel as T.Group | undefined;
-  if (model) { model.visible = true; model.position.set(this.runner.position.x, 0, -5.4); model.rotation.set(0, 0, 0); }
+  if (model) {
+    model.visible = true;
+    model.position.set(this.runner.position.x, this.groundY || 0, IVAN_BACK_Z);
+    model.rotation.set(0, 0, 0);
+  }
 };
 
 proto.step = function (dt: number) {
   updateIvanDebris(this, dt);
-  const edgeImpact = !!this.__ivanEdgeImpact || !!this.__edgeBump;
-  this.__ivanEdgeImpact = false;
   originalStep.call(this, dt);
 
   const model = this.__ivanModel as T.Group | undefined;
@@ -237,47 +246,34 @@ proto.step = function (dt: number) {
     return;
   }
 
-  if (edgeImpact && !this.__ivanLifeLost) { this.__ivanLifeLost = true; startIvanScene.call(this, true); }
+  updateIvanGround(this, model, dt);
 
-  if (!this.__ivanChase) {
-    const opening = Math.min(1, (this.stats.time as number) / 12);
-    const idleDistance = T.MathUtils.lerp(-5.4, -6.7, opening);
-    const idleTargetZ = idleDistance + Math.sin((this.stats.time as number) * 1.35) * .08;
-    model.position.z = T.MathUtils.damp(model.position.z, idleTargetZ, 5, dt);
-    model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 8, dt);
+  if (this.__ivanChase) {
+    this.__ivanSceneTime += dt;
+    const t = this.__ivanSceneTime as number;
+    const z = t < 1.1
+      ? T.MathUtils.lerp(IVAN_BACK_Z, IVAN_CLOSE_Z, T.MathUtils.smoothstep(t / 1.1, 0, 1))
+      : T.MathUtils.lerp(IVAN_CLOSE_Z, IVAN_BACK_Z + .35, T.MathUtils.smoothstep(Math.min(1, (t - 1.1) / 1.9), 0, 1));
+    model.position.z = Math.max(IVAN_MIN_Z, z);
+    model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 11, dt);
     model.visible = true;
-    animateIvan(model, this.stats.time as number);
-
+    animateIvan(model, t);
     const obstacle = findIvanObstacle(this, model);
     if (obstacle) smashIvanObstacle(this, obstacle);
+    if (t >= IVAN_CRASH_TIME) hideIvan.call(this);
     return;
   }
 
-  this.__ivanSceneTime += dt;
-  const t = this.__ivanSceneTime as number;
-
-  let targetRunnerZ = .28;
-  if (t < .8) targetRunnerZ = T.MathUtils.lerp(1.2, .22, T.MathUtils.smoothstep(t / .8, 0, 1));
-  else if (t < 2.45) targetRunnerZ = T.MathUtils.lerp(.22, 1.2, T.MathUtils.smoothstep((t - .8) / 1.65, 0, 1));
-  else targetRunnerZ = 1.2;
-  this.runner.position.z = targetRunnerZ;
-
-  // Even during the impact animation Ivan never gets in front of the philosopher.
-  const ivanTargetZ = t < 1.65
-    ? T.MathUtils.lerp(-4.8, .02, T.MathUtils.smoothstep(t / 1.65, 0, 1))
-    : T.MathUtils.lerp(.02, -5.0, T.MathUtils.smoothstep(Math.min(1, (t - 1.65) / 3.0), 0, 1));
-  model.position.z = T.MathUtils.damp(model.position.z, ivanTargetZ, 5.5, dt);
-  model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 11, dt);
-  model.visible = true;
-  animateIvan(model, t);
-
-  const obstacle = findIvanObstacle(this, model);
-  if (obstacle) smashIvanObstacle(this, obstacle);
-
-  if (t >= 5.0) {
-    model.position.z = -5.0;
-    this.__ivanChase = false;
-    this.__ivanSceneTime = 0;
-    this.runner.position.z = 1.2;
+  // Ivan is visible only for the opening seconds. After that he stays gone until a collision.
+  if ((this.__ivanIntroTime as number) < IVAN_INTRO_TIME) {
+    this.__ivanIntroTime += dt;
+    model.position.z = T.MathUtils.damp(model.position.z, IVAN_BACK_Z, 8, dt);
+    model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 8, dt);
+    model.visible = true;
+    animateIvan(model, this.stats.time as number);
+    const obstacle = findIvanObstacle(this, model);
+    if (obstacle) smashIvanObstacle(this, obstacle);
+  } else {
+    model.visible = false;
   }
 };
