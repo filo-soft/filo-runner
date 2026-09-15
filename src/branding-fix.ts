@@ -2,71 +2,77 @@ import * as T from 'three';
 import { RunnerGame } from './game';
 
 const proto = RunnerGame.prototype as any;
-const originalBuildWorld = proto.buildWorld;
 const originalBuildPrototypes = proto.buildPrototypes;
 
-const makeSignTexture = () => {
+const makeLogoTexture = () => {
   const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 300;
+  canvas.width = 1200;
+  canvas.height = 320;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
-  ctx.fillStyle = '#214f98';
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#2457a6';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = '#ed8b2d';
-  ctx.lineWidth = 20;
-  ctx.strokeRect(12, 12, canvas.width - 24, canvas.height - 24);
-  ctx.fillStyle = '#f6f0df';
-  ctx.font = '900 116px Arial Black, Arial, sans-serif';
-  ctx.textAlign = 'center';
+
+  // Geometric brand mark inspired by the current ЖЕЛЕЗНО identity: a compact
+  // square emblem followed by the wordmark, without the city name.
+  ctx.fillStyle = '#f2eee2';
+  ctx.fillRect(46, 48, 224, 224);
+  ctx.strokeStyle = '#2457a6';
+  ctx.lineWidth = 24;
+  ctx.beginPath();
+  ctx.moveTo(82, 232); ctx.lineTo(82, 88); ctx.lineTo(212, 88);
+  ctx.moveTo(82, 160); ctx.lineTo(212, 160);
+  ctx.moveTo(82, 232); ctx.lineTo(212, 88);
+  ctx.stroke();
+
+  ctx.fillStyle = '#f2eee2';
+  ctx.font = '900 152px Arial Black, Arial, sans-serif';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText('ЖЕЛЕЗНО', canvas.width / 2, 120);
-  ctx.fillStyle = '#f1cf9d';
-  ctx.font = '700 52px Arial, sans-serif';
-  ctx.fillText('КИРОВ', canvas.width / 2, 222);
+  ctx.fillText('ЖЕЛЕЗНО', 320, 164);
+
   const texture = new T.CanvasTexture(canvas);
   texture.colorSpace = T.SRGBColorSpace;
   texture.anisotropy = 4;
   return texture;
 };
 
-const addBrandSign = (parent: T.Group, y: number, z: number, scale = 1) => {
-  if (parent.userData.zheleznoSign) return;
-  const texture = makeSignTexture();
+const addBrandSign = (gate: T.Group) => {
+  if (gate.userData.zheleznoRoofSign) return;
+  const texture = makeLogoTexture();
   if (!texture) return;
 
-  const group = new T.Group();
-  group.name = 'ZheleznoKirovSign';
-  group.position.set(0, y, z);
-  group.scale.setScalar(scale);
+  const sign = new T.Group();
+  sign.name = 'ZheleznoRoofSign';
+  // The runner passes beneath this exact gate, so keep the branding attached
+  // to its roof rather than to the distant sanctuary or side landmarks.
+  sign.position.set(0, 8.05, .22);
+  sign.rotation.set(0, 0, 0);
+  sign.scale.setScalar(.66);
 
-  const frame = new T.Mesh(
-    new T.BoxGeometry(4.9, 1.55, .15),
-    new T.MeshStandardMaterial({ color: '#ed8b2d', roughness: .65 })
+  const backing = new T.Mesh(
+    new T.BoxGeometry(5.75, 1.62, .18),
+    new T.MeshStandardMaterial({ color: '#ed8b2d', roughness: .62 })
   );
-  frame.castShadow = true;
-  frame.receiveShadow = true;
-  group.add(frame);
+  backing.castShadow = true;
+  backing.receiveShadow = true;
+  sign.add(backing);
 
-  const sign = new T.Mesh(
-    new T.PlaneGeometry(4.55, 1.28),
+  const panel = new T.Mesh(
+    new T.PlaneGeometry(5.45, 1.42),
     new T.MeshBasicMaterial({ map: texture, side: T.DoubleSide })
   );
-  sign.position.z = .085;
-  group.add(sign);
+  panel.position.z = .105;
+  sign.add(panel);
 
-  parent.add(group);
-  parent.userData.zheleznoSign = true;
+  gate.add(sign);
+  gate.userData.zheleznoRoofSign = true;
 };
 
 proto.buildPrototypes = function () {
   originalBuildPrototypes.call(this);
-  const sideTemple = this.prototypes.get('sideTemple') as T.Group | undefined;
-  if (sideTemple) addBrandSign(sideTemple, 6.55, 1.48, .82);
-};
-
-proto.buildWorld = function () {
-  originalBuildWorld.call(this);
-  const temple = this.templeGroup as T.Group | undefined;
-  if (temple) addBrandSign(temple, 10.15, 3.02, 1.5);
+  const gate = this.prototypes.get('gate') as T.Group | undefined;
+  if (gate) addBrandSign(gate);
 };
