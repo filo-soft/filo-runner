@@ -11,12 +11,16 @@ type IvanDebris = {
 
 type IvanEffectsGame = RunnerGame & {
   __ivanRoot?: T.Group;
+  __ivanVisual?: T.Group;
   __ivanEffectsReady?: boolean;
   __ivanDebris?: IvanDebris[];
+  __ivanDepthPatched?: boolean;
+  __ivanHeadCleaned?: boolean;
 };
 
 const proto = RunnerGame.prototype as any;
 const previousStep = proto.step;
+const IVAN_DEPTH_PULLBACK = 1.15;
 
 const makeBackLabel = () => {
   const canvas = document.createElement('canvas');
@@ -49,7 +53,7 @@ const makeBackLabel = () => {
   label.name = 'IvanBackLabel';
   // Runner/IVAN roots face -Z, so the physical back is +Z.
   // The root is rotated 180°, therefore local -Z becomes world +Z.
-  label.position.set(0, 1.32, -.385);
+  label.position.set(0, 1.58, -.385);
   label.rotation.y = Math.PI;
   return label;
 };
@@ -60,6 +64,60 @@ const ensureIvanLabel = (game: IvanEffectsGame) => {
   const label = makeBackLabel();
   root.add(label);
   game.__ivanEffectsReady = true;
+};
+
+const cleanIvanHead = (game: IvanEffectsGame) => {
+  const visual = game.__ivanVisual;
+  if (!visual || game.__ivanHeadCleaned) return;
+
+  visual.updateMatrixWorld(true);
+  const bounds = new T.Box3().setFromObject(visual);
+  const size = new T.Vector3();
+  bounds.getSize(size);
+  if (size.y <= .01) return;
+
+  const headNames = /(head|hair|hairstyle|cap|helmet|crown|tuft|top)/i;
+  const skipNames = /(eye|pupil|iris|brow|lash|mouth|teeth|nose)/i;
+  const topThreshold = bounds.min.y + size.y * .59;
+
+  visual.traverse((object: T.Object3D) => {
+    const mesh = object as T.Mesh;
+    if (!mesh.isMesh || skipNames.test(mesh.name)) return;
+
+    const name = mesh.name || '';
+    const localBounds = new T.Box3().setFromObject(mesh);
+    const localSize = new T.Vector3();
+    const center = new T.Vector3();
+    localBounds.getSize(localSize);
+    localBounds.getCenter(center);
+
+    const namedHeadPart = headNames.test(name);
+    const compactUpperMesh = center.y > topThreshold &&
+      localSize.y < size.y * .43 &&
+      Math.max(localSize.x, localSize.z) < size.y * .48;
+
+    if (namedHeadPart || compactUpperMesh) {
+      const amount = /hair|hairstyle|cap|helmet|crown|tuft/i.test(name) ? .72 : .84;
+      mesh.scale.x *= amount;
+      mesh.scale.z *= amount;
+    }
+  });
+
+  game.__ivanHeadCleaned = true;
+};
+
+const ensureDepthPullback = (game: IvanEffectsGame) => {
+  if (game.__ivanDepthPatched || !game.renderer) return;
+  game.__ivanDepthPatched = true;
+  const render = game.renderer.render.bind(game.renderer);
+  game.renderer.render = (scene: T.Object3D, camera: T.Camera) => {
+    const root = game.__ivanRoot;
+    const bothOnScreen = game.mode === 'playing' && !!root?.visible;
+    const originalZ = camera.position.z;
+    if (bothOnScreen) camera.position.z = originalZ * IVAN_DEPTH_PULLBACK;
+    render(scene, camera);
+    camera.position.z = originalZ;
+  };
 };
 
 const materialForDebris = (game: IvanEffectsGame, item: any) => {
@@ -163,7 +221,9 @@ proto.step = function (dt: number) {
     return;
   }
 
+  ensureDepthPullback(game);
   ensureIvanLabel(game);
+  cleanIvanHead(game);
 
   const ivanZ = root.position.z;
   const ivanX = root.position.x;
