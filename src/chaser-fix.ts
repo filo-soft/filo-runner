@@ -45,7 +45,6 @@ const makeIvan = function (game: any) {
   root.add(head);
   addSphere(head, 0, 0, 0, .27, .31, .25, skin);
 
-  // Construction helmet: dome + brim, deliberately simple and clearly recognizable.
   addSphere(head, 0, .18, 0, .31, .16, .29, helmet);
   const brim = new T.Mesh(new T.CylinderGeometry(.37, .37, .075, 24), helmet);
   brim.position.set(0, .095, .01);
@@ -95,7 +94,6 @@ const makeIvan = function (game: any) {
     if (mesh.isMesh) mesh.frustumCulled = false;
   });
 
-  // Keep him unmistakably behind the philosopher, never as a collision object.
   root.visible = false;
   root.position.y = 0;
   game.scene.add(root);
@@ -105,11 +103,11 @@ const makeIvan = function (game: any) {
 const animateIvan = function (model: T.Group, t: number) {
   const stride = Math.sin(t * 13.5);
   const strideOpposite = Math.sin(t * 13.5 + Math.PI);
-  const arms = model.userData;
-  const leftLeg = arms.leftLeg as T.Group;
-  const rightLeg = arms.rightLeg as T.Group;
-  const leftArm = arms.leftArm as T.Group;
-  const rightArm = arms.rightArm as T.Group;
+  const data = model.userData;
+  const leftLeg = data.leftLeg as T.Group;
+  const rightLeg = data.rightLeg as T.Group;
+  const leftArm = data.leftArm as T.Group;
+  const rightArm = data.rightArm as T.Group;
   leftLeg.rotation.x = stride * .72;
   rightLeg.rotation.x = strideOpposite * .72;
   leftArm.rotation.x = strideOpposite * .62;
@@ -118,27 +116,26 @@ const animateIvan = function (model: T.Group, t: number) {
   model.position.y = Math.abs(Math.sin(t * 13.5)) * .035;
 };
 
-const startIvanScene = function () {
+const startIvanScene = function (impact = false) {
   if (this.mode !== 'playing') return;
   if (!this.__ivanModel) this.__ivanModel = makeIvan(this);
 
   const model = this.__ivanModel as T.Group;
-  this.__ivanSceneTime = 0;
-  this.__ivanChase = true;
+  this.__ivanSceneTime = impact ? 0 : (this.__ivanSceneTime as number || 0);
+  this.__ivanChase = impact;
   model.visible = true;
   model.position.x = this.runner.position.x;
-  model.position.z = 4.9;
+  model.position.z = impact ? 4.9 : 7.2;
   model.position.y = 0;
   model.rotation.set(0, 0, 0);
 
-  // Visual impact: the philosopher surges forward for a moment, then recovers.
-  this.__ivanRunnerKick = 0;
-  this.__ivanRunnerBaseZ = 1.2;
-  this.runner.position.z = .28;
-
-  this.shake = Math.max(this.shake as number, .32);
-  this.tone?.(120, .16, 70, 'sawtooth');
-  if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(90);
+  if (impact) {
+    this.__ivanRunnerBaseZ = 1.2;
+    this.runner.position.z = .28;
+    this.shake = Math.max(this.shake as number, .32);
+    this.tone?.(120, .16, 70, 'sawtooth');
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(90);
+  }
 };
 
 const hideIvan = function () {
@@ -158,7 +155,7 @@ proto.die = function () {
 
   if (!this.__ivanLifeLost) {
     this.__ivanLifeLost = true;
-    startIvanScene.call(this);
+    startIvanScene.call(this, true);
     return;
   }
 
@@ -173,48 +170,70 @@ proto.start = function () {
   this.__ivanChase = false;
   this.__ivanSceneTime = 0;
   this.__ivanRunnerKick = 0;
+  this.__ivanEdgeImpact = false;
   this.runner.position.z = 1.2;
+
   const model = this.__ivanModel as T.Group | undefined;
   if (model) {
-    model.visible = false;
-    model.position.set(0, 0, 4.9);
+    model.visible = true;
+    model.position.set(this.runner.position.x, 0, 7.2);
+    model.rotation.set(0, 0, 0);
   }
 };
 
 proto.step = function (dt: number) {
+  const edgeImpact = !!this.__ivanEdgeImpact || !!this.__edgeBump;
+  this.__ivanEdgeImpact = false;
+
   originalStep.call(this, dt);
 
-  if (!this.__ivanChase || this.mode !== 'playing') return;
+  if (edgeImpact && this.mode === 'playing' && !this.__ivanLifeLost) {
+    this.__ivanLifeLost = true;
+    startIvanScene.call(this, true);
+  }
+
   const model = this.__ivanModel as T.Group | undefined;
-  if (!model) return;
+  if (!model || this.mode !== 'playing') return;
+
+  // Before the first hit Ivan is already part of the run, staying farther behind.
+  if (!this.__ivanChase) {
+    const idleTargetZ = 7.2 + Math.sin(this.stats.time * 1.5) * .22;
+    model.position.z = T.MathUtils.damp(model.position.z, idleTargetZ, 4, dt);
+    model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 7, dt);
+    model.visible = true;
+    animateIvan(model, this.stats.time as number);
+    return;
+  }
 
   this.__ivanSceneTime += dt;
   const t = this.__ivanSceneTime as number;
 
-  // 0.0–0.75s: philosopher surges forward. 0.75–1.8s: slows and returns.
+  // Impact scene: philosophy surges forward, slows, then settles back to its normal start position.
   let targetRunnerZ = .28;
   if (t < .8) {
     const p = T.MathUtils.smoothstep(t / .8, 0, 1);
     targetRunnerZ = T.MathUtils.lerp(1.2, .22, p);
-  } else if (t < 2.15) {
-    const p = T.MathUtils.smoothstep((t - .8) / 1.35, 0, 1);
+  } else if (t < 2.45) {
+    const p = T.MathUtils.smoothstep((t - .8) / 1.65, 0, 1);
     targetRunnerZ = T.MathUtils.lerp(.22, 1.2, p);
   } else {
     targetRunnerZ = 1.2;
   }
   this.runner.position.z = targetRunnerZ;
 
-  // Ivan follows the surge briefly, then loses ground as the philosopher recovers.
-  const ivanTargetZ = t < 1.15
-    ? T.MathUtils.lerp(4.9, 3.6, T.MathUtils.smoothstep(t / 1.15, 0, 1))
-    : T.MathUtils.lerp(3.6, 6.3, T.MathUtils.smoothstep(Math.min(1, (t - 1.15) / 1.55), 0, 1));
-  model.position.z = T.MathUtils.damp(model.position.z, ivanTargetZ, 9, dt);
+  // Keep Ivan visible longer: close in first, then fall back gradually behind the philosopher.
+  const ivanTargetZ = t < 1.25
+    ? T.MathUtils.lerp(4.9, 3.45, T.MathUtils.smoothstep(t / 1.25, 0, 1))
+    : T.MathUtils.lerp(3.45, 7.0, T.MathUtils.smoothstep(Math.min(1, (t - 1.25) / 2.8), 0, 1));
+  model.position.z = T.MathUtils.damp(model.position.z, ivanTargetZ, 8, dt);
   model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 12, dt);
   model.visible = true;
   animateIvan(model, t);
 
-  if (t >= 3.1) {
-    hideIvan.call(this);
+  if (t >= 5.1) {
+    model.position.z = 7.2;
+    this.__ivanChase = false;
+    this.__ivanSceneTime = 0;
     this.runner.position.z = 1.2;
   }
 };
