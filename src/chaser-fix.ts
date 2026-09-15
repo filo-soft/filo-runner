@@ -8,10 +8,11 @@ const originalStart = proto.start;
 const originalStep = proto.step;
 const originalDie = proto.die;
 
-const PETE_URL = `${import.meta.env.BASE_URL}pete.glb`;
+const IVAN_MODEL_URL = `${import.meta.env.BASE_URL}ivan/ivan1.glb`;
+const IVAN_RUN_URL = `${import.meta.env.BASE_URL}ivan/Slow%20Run1.glb`;
 
-const findClip = (clips: T.AnimationClip[], pattern: RegExp) =>
-  clips.find((clip) => pattern.test(clip.name)) ?? clips[0];
+const findClip = (clips: T.AnimationClip[]) =>
+  clips.find((clip) => /run|jog|sprint|walk/i.test(clip.name)) ?? clips[0];
 
 const addIvanName = (root: T.Object3D) => {
   const canvas = document.createElement('canvas');
@@ -39,12 +40,11 @@ const addIvanName = (root: T.Object3D) => {
     depthWrite: false,
   });
   const badge = new T.Mesh(new T.PlaneGeometry(.86, .24), material);
-  // Mixamo characters normally face -Z, so +Z is the back facing the player.
   badge.position.set(0, 1.35, .24);
   root.add(badge);
 };
 
-const normalizePete = (root: T.Object3D) => {
+const normalizeIvan = (root: T.Object3D) => {
   const box = new T.Box3().setFromObject(root);
   const size = box.getSize(new T.Vector3());
   if (size.y > 0) {
@@ -63,27 +63,44 @@ const normalizePete = (root: T.Object3D) => {
   addIvanName(root);
 };
 
-const loadPete = function () {
+const loadIvan = function () {
   if (this.__ivanLoaded || this.__ivanLoading) return;
   this.__ivanLoading = true;
   const loader = new GLTFLoader();
   loader.load(
-    PETE_URL,
+    IVAN_MODEL_URL,
     (gltf) => {
       this.__ivanLoaded = true;
-      this.__ivanLoading = false;
       this.__ivanModel = gltf.scene;
-      normalizePete(this.__ivanModel);
-      this.__ivanMixer = gltf.animations.length ? new T.AnimationMixer(this.__ivanModel) : undefined;
-      this.__ivanClips = gltf.animations;
-      if (this.__ivanChase) attachPete.call(this);
+      normalizeIvan(this.__ivanModel);
+      this.__ivanMixer = new T.AnimationMixer(this.__ivanModel);
+      loadIvanRun.call(this);
+      if (this.__ivanChase) attachIvan.call(this);
     },
     undefined,
-    () => {
+    (error) => {
       this.__ivanLoading = false;
-      // The binary is intentionally optional while the code is deployed. Missing
-      // Pete must never block the game from loading.
-      console.warn('[Filo Runner] Pete model is not installed yet:', PETE_URL);
+      console.warn('[Filo Runner] Ivan model failed to load:', error);
+    },
+  );
+};
+
+const loadIvanRun = function () {
+  if (this.__ivanRunLoaded || this.__ivanRunLoading) return;
+  this.__ivanRunLoading = true;
+  const loader = new GLTFLoader();
+  loader.load(
+    IVAN_RUN_URL,
+    (gltf) => {
+      this.__ivanRunLoaded = true;
+      this.__ivanRunLoading = false;
+      this.__ivanClips = gltf.animations;
+      playRun.call(this);
+    },
+    undefined,
+    (error) => {
+      this.__ivanRunLoading = false;
+      console.warn('[Filo Runner] Ivan slow run animation failed to load:', error);
     },
   );
 };
@@ -92,15 +109,15 @@ const playRun = function () {
   const mixer = this.__ivanMixer as T.AnimationMixer | undefined;
   const clips = (this.__ivanClips as T.AnimationClip[] | undefined) ?? [];
   if (!mixer || !clips.length) return;
-  const clip = findClip(clips, /run|jog|sprint|walk/i);
+  const clip = findClip(clips);
   if (!clip) return;
-  if (this.__ivanAction?.getClip() === clip) return;
+  if (this.__ivanAction?.getClip() === clip && this.__ivanAction.isRunning()) return;
   this.__ivanAction?.stop();
   this.__ivanAction = mixer.clipAction(clip);
   this.__ivanAction.reset().setLoop(T.LoopRepeat, Infinity).play();
 };
 
-const attachPete = function () {
+const attachIvan = function () {
   if (!this.__ivanModel || this.__ivanAttached) return;
   this.__ivanAttached = true;
   this.scene.add(this.__ivanModel);
@@ -108,7 +125,7 @@ const attachPete = function () {
   playRun.call(this);
 };
 
-const hidePete = function () {
+const hideIvan = function () {
   const model = this.__ivanModel as T.Object3D | undefined;
   if (model) model.visible = false;
   this.__ivanChase = false;
@@ -119,8 +136,7 @@ const startIvanChase = function () {
   if (this.mode !== 'playing') return;
   this.__ivanChase = true;
   this.__ivanChaseTime = 0;
-  this.__ivanCaughtDistance = 0;
-  attachPete.call(this);
+  attachIvan.call(this);
   const model = this.__ivanModel as T.Object3D | undefined;
   if (model) {
     model.visible = true;
@@ -135,12 +151,11 @@ const startIvanChase = function () {
 
 proto.buildWorld = function () {
   originalBuildWorld.call(this);
-  loadPete.call(this);
+  loadIvan.call(this);
 };
 
-// First collision: do not end the run. Ivan starts close behind.
-// A second collision while Ivan is still close ends the run. If the player
-// survives long enough, Ivan falls behind and the chase is cleared.
+// First collision: continue the run and release Ivan behind the player.
+// A second collision while Ivan is still close ends the run.
 proto.die = function () {
   if (this.mode !== 'playing') return originalDie.call(this);
   if (!this.__ivanChase) {
@@ -151,11 +166,10 @@ proto.die = function () {
   const model = this.__ivanModel as T.Object3D | undefined;
   const distance = model ? model.position.z - 1.2 : 999;
   if (distance <= 10.5) {
-    hidePete.call(this);
+    hideIvan.call(this);
     return originalDie.call(this);
   }
 
-  // The player has already lost Ivan; another mistake starts a fresh chase.
   startIvanChase.call(this);
 };
 
@@ -165,7 +179,7 @@ proto.start = function () {
   this.__ivanChaseTime = 0;
   const model = this.__ivanModel as T.Object3D | undefined;
   if (model) model.visible = false;
-  loadPete.call(this);
+  loadIvan.call(this);
 };
 
 proto.step = function (dt: number) {
@@ -180,13 +194,12 @@ proto.step = function (dt: number) {
 
   this.__ivanChaseTime += dt;
   model.visible = true;
-
-  // Ivan initially gains, then steadily loses ground. At roughly eight seconds
-  // he is far enough back that the chase pressure is gone.
   const t = this.__ivanChaseTime as number;
+
+  // Ivan starts close, then gradually loses ground and disappears after the chase.
   const targetZ = 4.8 + Math.min(10.5, t * 1.35);
   model.position.z = T.MathUtils.damp(model.position.z, targetZ, 7, dt);
   model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 12, dt);
 
-  if (t >= 7.8 || model.position.z >= 14.5) hidePete.call(this);
+  if (t >= 7.8 || model.position.z >= 14.5) hideIvan.call(this);
 };
