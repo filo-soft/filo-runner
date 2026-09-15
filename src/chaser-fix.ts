@@ -10,7 +10,8 @@ const originalDie = proto.die;
 const makeIvan = function (game: any) {
   const root = new T.Group();
   root.name = 'IvanChaser';
-  root.scale.setScalar(.82);
+  // Ivan should read as a full-size adult runner, not a small mascot.
+  root.scale.setScalar(1.12);
 
   const blue = new T.MeshStandardMaterial({ color: '#2457a6', roughness: .72 });
   const blueDark = new T.MeshStandardMaterial({ color: '#173d78', roughness: .8 });
@@ -181,8 +182,7 @@ const startIvanScene = function (impact = false) {
   this.__ivanChase = impact;
   model.visible = true;
   model.position.x = this.runner.position.x;
-  // Negative Z is farther down the track than the philosopher. Ivan always approaches from behind.
-  model.position.z = impact ? -4.35 : -4.1;
+  model.position.z = impact ? -4.8 : -5.4;
   model.position.y = 0;
   model.rotation.set(0, 0, 0);
   if (impact) {
@@ -220,7 +220,7 @@ proto.start = function () {
   this.__ivanDebris = [];
   this.runner.position.z = 1.2;
   const model = this.__ivanModel as T.Group | undefined;
-  if (model) { model.visible = true; model.position.set(this.runner.position.x, 0, -4.1); model.rotation.set(0, 0, 0); }
+  if (model) { model.visible = true; model.position.set(this.runner.position.x, 0, -5.4); model.rotation.set(0, 0, 0); }
 };
 
 proto.step = function (dt: number) {
@@ -241,7 +241,7 @@ proto.step = function (dt: number) {
 
   if (!this.__ivanChase) {
     const opening = Math.min(1, (this.stats.time as number) / 12);
-    const idleDistance = T.MathUtils.lerp(-4.1, -5.2, opening);
+    const idleDistance = T.MathUtils.lerp(-5.4, -6.7, opening);
     const idleTargetZ = idleDistance + Math.sin((this.stats.time as number) * 1.35) * .08;
     model.position.z = T.MathUtils.damp(model.position.z, idleTargetZ, 5, dt);
     model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 8, dt);
@@ -262,9 +262,10 @@ proto.step = function (dt: number) {
   else targetRunnerZ = 1.2;
   this.runner.position.z = targetRunnerZ;
 
+  // Even during the impact animation Ivan never gets in front of the philosopher.
   const ivanTargetZ = t < 1.65
-    ? T.MathUtils.lerp(-4.35, .52, T.MathUtils.smoothstep(t / 1.65, 0, 1))
-    : T.MathUtils.lerp(.52, -4.4, T.MathUtils.smoothstep(Math.min(1, (t - 1.65) / 3.0), 0, 1));
+    ? T.MathUtils.lerp(-4.8, .02, T.MathUtils.smoothstep(t / 1.65, 0, 1))
+    : T.MathUtils.lerp(.02, -5.0, T.MathUtils.smoothstep(Math.min(1, (t - 1.65) / 3.0), 0, 1));
   model.position.z = T.MathUtils.damp(model.position.z, ivanTargetZ, 5.5, dt);
   model.position.x = T.MathUtils.damp(model.position.x, this.runner.position.x, 11, dt);
   model.visible = true;
@@ -274,7 +275,7 @@ proto.step = function (dt: number) {
   if (obstacle) smashIvanObstacle(this, obstacle);
 
   if (t >= 5.0) {
-    model.position.z = -4.4;
+    model.position.z = -5.0;
     this.__ivanChase = false;
     this.__ivanSceneTime = 0;
     this.runner.position.z = 1.2;
