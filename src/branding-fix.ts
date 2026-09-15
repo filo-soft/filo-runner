@@ -16,7 +16,6 @@ const makeLogoTexture = () => {
   ctx.fillStyle = '#2457a6';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Current ЖЕЛЕЗНО visual: blue field, light geometric emblem and wordmark.
   ctx.fillStyle = '#f2eee2';
   ctx.fillRect(46, 48, 224, 224);
   ctx.strokeStyle = '#2457a6';
@@ -53,7 +52,6 @@ const makePanel = (texture: T.Texture, width: number, height: number, backingCol
     new T.PlaneGeometry(width, height),
     new T.MeshBasicMaterial({ map: texture, side: T.DoubleSide })
   );
-  // The camera approaches from +Z, so the +Z-facing panel is the visible side.
   panel.position.z = .105;
   group.add(panel);
   return group;
@@ -61,22 +59,25 @@ const makePanel = (texture: T.Texture, width: number, height: number, backingCol
 
 const addGateLogo = (gate: T.Group, texture: T.Texture) => {
   if (gate.userData.zheleznoRoofSign) return;
-  const sign = makePanel(texture, 5.35, 1.42);
-  sign.name = 'ZheleznoGateFacadeLogo';
-  // Put the logo on the front face of the pass-under gate, just under the roof,
-  // rather than on top of the roof where the camera cannot see it.
-  sign.position.set(0, 6.55, .97);
-  sign.scale.setScalar(.92);
+  // The pass-under gate's triangular pediment starts at y=6.15 and peaks at
+  // y=8.25. Put the sign on that visible +Z-facing roof/pediment surface,
+  // not above it and not behind the roof.
+  const sign = makePanel(texture, 4.75, 1.08);
+  sign.name = 'ZheleznoGateRoofLogo';
+  sign.position.set(0, 7.12, .93);
+  sign.scale.setScalar(1);
   gate.add(sign);
   gate.userData.zheleznoRoofSign = true;
 };
 
 const addDistantTempleLogo = (temple: T.Group, texture: T.Texture) => {
   if (temple.userData.zheleznoFacadeLogo) return;
-  const sign = makePanel(texture, 7.7, 1.55, '#ed8b2d');
-  sign.name = 'ZheleznoDistantTempleLogo';
-  // Front facade of the distant sanctuary: visible toward the runner/camera.
-  sign.position.set(0, 5.15, 3.6);
+  // The sanctuary pediment starts at y=9 and peaks at y=13. Place the logo
+  // directly on its visible +Z-facing roof front.
+  const sign = makePanel(texture, 7.4, 1.34);
+  sign.name = 'ZheleznoDistantTempleRoofLogo';
+  sign.position.set(0, 10.55, 3.08);
+  sign.scale.setScalar(1);
   temple.add(sign);
   temple.userData.zheleznoFacadeLogo = true;
 };
