@@ -2,6 +2,7 @@ import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RunnerGame } from './game';
 
+// IVAN visual depth tune: start close enough to remain inside the camera frustum, then drift back gradually.
 const IVAN_BASE_GAP = 13;
 const IVAN_START_GAP = 5.5;
 const IVAN_INTRO_Z_GAP = 5.5;
