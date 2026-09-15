@@ -167,8 +167,8 @@ const loadIvan = async (game: IvanGame) => {
   const loader = new GLTFLoader();
   try {
     const [modelGltf, animationGltf] = await Promise.all([
-      loader.loadAsync('/ivan/ivan1.glb'),
-      loader.loadAsync('/ivan/Slow%20Run1.glb'),
+      loader.loadAsync('./ivan/ivan1.glb'),
+      loader.loadAsync('./ivan/Slow%20Run1.glb'),
     ]);
 
     const root = new T.Group();
@@ -343,5 +343,5 @@ proto.step = function (dt: number) {
   }
 
   if (game.mode === 'playing') animateIvanWorld(game, dt);
-  else hideIvan(game);
+  else if (game.mode === 'over' || game.mode === 'menu') hideIvan(game);
 };
