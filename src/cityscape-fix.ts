@@ -29,9 +29,10 @@ const addBox = (g: T.Group, geo: T.BoxGeometry, mat: T.Material, x: number, y: n
 
 const addSideLogo = (g: T.Group, side: 1 | -1, w: number, h: number) => {
   const sign = new T.Group(); sign.name = 'ZheleznoResidentialLogo';
-  const backing = new T.Mesh(new T.BoxGeometry(.12, 1.7, 3.9), new T.MeshStandardMaterial({ color: '#2457a6', roughness: .7 }));
+  // Original ЖЕЛЕЗНО logo aspect ratio is 269:40 (~6.73:1). Keep it intact; only scale it down.
+  const backing = new T.Mesh(new T.BoxGeometry(.12, .64, 3.46), new T.MeshStandardMaterial({ color: '#2457a6', roughness: .7 }));
   backing.castShadow = true; backing.receiveShadow = true; sign.add(backing);
-  const panel = new T.Mesh(new T.PlaneGeometry(3.72, 1.52), new T.MeshBasicMaterial({ map: logoTexture, transparent: true, side: T.DoubleSide, depthWrite: false }));
+  const panel = new T.Mesh(new T.PlaneGeometry(3.22, .478), new T.MeshBasicMaterial({ map: logoTexture, transparent: true, side: T.DoubleSide, depthWrite: false }));
   panel.rotation.y = Math.PI / 2; panel.position.x = side * .071; sign.add(panel);
   sign.position.set(side * (w / 2 + .075), h * .56, 0);
   g.add(sign);
