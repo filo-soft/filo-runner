@@ -9,6 +9,8 @@ const originalBuildPrototypes = proto.buildPrototypes;
 const originalSupportAt = proto.supportAt;
 const originalControl = proto.control;
 
+const BONUS_START_TIME = 180;
+
 const ensureExtraRamp = function () {
   if (this.prototypes.has('stairRamp')) return;
   const ramp = new T.Group();
@@ -61,19 +63,24 @@ const sanitizeCoins = function () {
   }
 };
 
-const replaceBlueCoin = function (coin: any) {
+const replaceBlueCoin = function (coin: any, powerup: boolean) {
   const lane = coin.lane as number;
   const z = coin.mesh.position.z as number;
   const y = coin.mesh.position.y as number;
   this.recycle(coin);
   const index = this.items.indexOf(coin);
   if (index >= 0) this.items.splice(index, 1);
+
+  // Keep the old orange +10 coin in the rare slot before 3 minutes.
+  // After 3 real minutes the same 5% slot becomes a magnet or shield.
   const bonus = this.addItem('bonusCoin', lane, z);
   bonus.mesh.position.y = y;
   bonus.laneX = lane * 2.2;
   bonus.mesh.position.x = bonus.laneX + this.bendOff(z);
   bonus.checked = true;
-  bonus.mesh.userData.bonusType = Math.random() < .5 ? 'magnet' : 'shield';
+  bonus.mesh.userData.bonusPhase = powerup ? 'powerup' : 'orange';
+  if (powerup) bonus.mesh.userData.bonusType = Math.random() < .5 ? 'magnet' : 'shield';
+  else delete bonus.mesh.userData.bonusType;
 };
 
 proto.buildPrototypes = function () {
@@ -99,17 +106,17 @@ proto.spawn = function () {
   const distance = this.stats.distance as number;
   const time = this.stats.time as number;
   const completedRow = (this.row as number) - 1;
-  const beforeItems = new Set(this.items as any[]);
+  const beforeItems = new Set((this.items as any[]));
   originalSpawn.call(this);
 
-  // Hard gate: no bonus item may be created before 180 seconds of actual play.
-  // The 5% roll replaces exactly one coin created by this spawn call.
-  if (time >= 180 && Math.random() < .05) {
+  // The rare 5% slot exists from the start of the run.
+  // Before 180s it is the orange +10 coin; from 180s it is a powerup.
+  if (Math.random() < .05) {
     const newCoins = (this.items as any[]).filter((item: any) =>
       !beforeItems.has(item) && item.type === 'coin'
     );
     const target = newCoins[newCoins.length - 1];
-    if (target) replaceBlueCoin.call(this, target);
+    if (target) replaceBlueCoin.call(this, target, time >= BONUS_START_TIME);
   }
 
   if (distance >= 9000 && completedRow >= 1 && completedRow % 3 === 0 && completedRow % 7 !== 0) {
@@ -125,7 +132,7 @@ proto.spawn = function () {
     this.addItem('pillar', lanes[2], -92);
   }
 
-  if (distance >= 8000 && time >= 180 && completedRow >= 1 && completedRow % 19 === 0) {
+  if (distance >= 8000 && time >= BONUS_START_TIME && completedRow >= 1 && completedRow % 19 === 0) {
     const lane = (((completedRow + 1) % 3) - 1) as number;
     this.addItem('stairRamp', lane, -103);
     const coin = this.addItem('bonusCoin', lane, -104.25);
@@ -133,6 +140,7 @@ proto.spawn = function () {
     coin.mesh.position.x = coin.laneX + this.bendOff(coin.mesh.position.z);
     coin.mesh.position.y = 2.32;
     coin.checked = true;
+    coin.mesh.userData.bonusPhase = 'powerup';
     coin.mesh.userData.bonusType = Math.random() < .5 ? 'magnet' : 'shield';
   }
 
