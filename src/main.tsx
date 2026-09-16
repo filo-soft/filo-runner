@@ -20,6 +20,7 @@ import "./hit-protection";
 import "./boulder-fix";
 import "./ivan-guard-fix";
 import "./bonus-ramp-fix";
+import "./god-mode-fix";
 import "./version-fix";
 import "./ui-readability-fix";
 import App from "./App";
