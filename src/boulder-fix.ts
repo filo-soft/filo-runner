@@ -3,10 +3,11 @@ import { RunnerGame } from './game';
 
 const proto = RunnerGame.prototype as any;
 const BOULDER_INTERVAL = 90;
-const BOULDER_START_Z = -108;
-const BOULDER_SPEED_BONUS = 11;
+const BOULDER_START_Z = -98;
+const BOULDER_SPEED = 27;
 const BOULDER_RADIUS = 1.45;
-const BOULDER_MIN_VISIBLE_Z = -92;
+const BOULDER_VISIBLE_Z = -92;
+const BOULDER_HIT_REACH = 2.9;
 
 const makeMarbleTexture = () => {
   const canvas = document.createElement('canvas');
@@ -47,13 +48,18 @@ proto.buildPrototypes = function () {
   rock.receiveShadow = true;
   boulder.add(rock);
 
-  const accentMat = new T.MeshStandardMaterial({ color: '#c8c4ba', roughness: .3, metalness: .03 });
-  for (let i = 0; i < 3; i++) {
-    const accent = new T.Mesh(new T.TorusGeometry(.84 + i * .06, .018, 6, 20), accentMat);
-    accent.rotation.set(Math.PI * .5 + i * .19, i * .75, i * .28);
-    accent.scale.set(1.03, .8, 1);
-    boulder.add(accent);
-  }
+  // An asymmetric marble seam makes the rolling motion unmistakable instead of
+  // looking like a sphere that only spins in place.
+  const seamMat = new T.MeshStandardMaterial({ color: '#7e7a72', roughness: .48, metalness: .01 });
+  const seam = new T.Mesh(new T.TorusGeometry(1.01, .028, 7, 32), seamMat);
+  seam.rotation.set(Math.PI * .5, .42, .18);
+  seam.scale.set(1.02, .76, 1);
+  boulder.add(seam);
+
+  const seam2 = new T.Mesh(new T.TorusGeometry(.73, .022, 7, 28), seamMat);
+  seam2.rotation.set(1.08, -.65, .42);
+  seam2.scale.set(.92, .78, 1.08);
+  boulder.add(seam2);
 
   this.prototypes.set('boulder', boulder);
   this.resources.push(boulder);
@@ -71,6 +77,7 @@ function ensureBoulder(game: any) {
   game.__boulderZ = BOULDER_START_Z;
   game.__boulderActive = false;
   game.__boulderNextAt = BOULDER_INTERVAL;
+  game.__boulderDustAt = 0;
   return boulder;
 }
 
@@ -81,10 +88,10 @@ function destroyOnBoulder(game: any, lane: number, z: number) {
     if (!item || item.lane !== lane) continue;
     const type = item.type;
     if (!['block', 'pillar', 'arch', 'wall', 'gate', 'coin', 'bonusCoin'].includes(type)) continue;
-    if (Math.abs(item.mesh.position.z - z) > 2.2) continue;
+    if (Math.abs(Number(item.mesh?.position?.z) - z) > 3.1) continue;
     const pos = item.mesh.position.clone();
-    game.burst(pos, true, type === 'coin' || type === 'bonusCoin' ? 4 : 10);
-    if (type !== 'coin' && type !== 'bonusCoin') game.burst(pos, true, 5);
+    game.burst(pos, true, type === 'coin' || type === 'bonusCoin' ? 5 : 14);
+    if (type !== 'coin' && type !== 'bonusCoin') game.burst(pos, true, 7);
     game.recycle(item);
     items.splice(i, 1);
   }
@@ -94,10 +101,12 @@ const originalStep = proto.step;
 proto.step = function (dt: number) {
   const wasPlaying = this.mode === 'playing';
   const boulder = ensureBoulder(this);
+
   if (!wasPlaying && this.mode !== 'playing') {
     if (boulder) boulder.visible = false;
     this.__boulderActive = false;
     this.__boulderNextAt = BOULDER_INTERVAL;
+    return originalStep.call(this, dt);
   }
 
   originalStep.call(this, dt);
@@ -107,11 +116,12 @@ proto.step = function (dt: number) {
     this.__boulderActive = true;
     this.__boulderLane = Math.floor(Math.random() * 3) - 1;
     this.__boulderZ = BOULDER_START_Z;
+    this.__boulderDustAt = 0;
     boulder.visible = true;
     boulder.position.set(
-      this.__boulderLane * 2.2 + this.bendOff(this.__boulderZ),
+      this.__boulderLane * 2.2 + this.bendOff(BOULDER_START_Z),
       this.groundY + BOULDER_RADIUS - .05,
-      this.__boulderZ,
+      BOULDER_START_Z,
     );
     boulder.rotation.set(0, 0, 0);
     this.onToast('КАТИТСЯ ВАЛУН!');
@@ -119,39 +129,51 @@ proto.step = function (dt: number) {
   }
   if (!this.__boulderActive) return;
 
-  const speed = Math.min(21, 10.5 + this.stats.time * .12) + BOULDER_SPEED_BONUS;
-  const prevZ = this.__boulderZ as number;
-  this.__boulderZ += speed * dt;
-  const z = this.__boulderZ as number;
   const lane = this.__boulderLane as number;
+  const prevZ = this.__boulderZ as number;
 
-  // The boulder actually travels down the selected lane. Its forward movement is
-  // deliberately much more visible than its spin, so it cannot look stationary.
+  // Game world scrolls toward the player (+Z). The boulder gets its own
+  // substantially faster +Z velocity, so it physically catches up to us.
+  const z = prevZ + BOULDER_SPEED * dt;
+  this.__boulderZ = z;
+
   boulder.position.x = lane * 2.2 + this.bendOff(z);
   boulder.position.y = this.groundY + BOULDER_RADIUS - .05;
   boulder.position.z = z;
-  boulder.rotation.x -= speed * dt / BOULDER_RADIUS;
-  boulder.rotation.y += speed * dt / (BOULDER_RADIUS * .9);
-  boulder.rotation.z += speed * dt * .025;
 
+  // Roll around the actual transverse axle. The asymmetric seams provide a clear
+  // visual reference for the rotation while the whole object advances down-lane.
+  const roll = BOULDER_SPEED * dt / BOULDER_RADIUS;
+  boulder.rotation.x -= roll;
+  boulder.rotation.z += roll * .035;
+
+  // Break anything in the boulder's swept path. Also use a forward reach so an
+  // obstacle cannot visually sit inside the boulder before the collision check fires.
   const items = (this.items || []) as any[];
-  // Use the whole swept path between the previous and current boulder positions,
-  // not only the final position, so fast movement cannot skip obstacles.
   for (const item of [...items]) {
     if (!item || item.lane !== lane) continue;
     const type = item.type;
     if (!['block', 'pillar', 'arch', 'wall', 'gate', 'coin', 'bonusCoin'].includes(type)) continue;
     const itemZ = Number(item.mesh?.position?.z);
     if (!Number.isFinite(itemZ)) continue;
-    const crossed = prevZ <= itemZ && itemZ <= z;
-    if (crossed || Math.abs(itemZ - z) < 1.35) destroyOnBoulder(this, lane, itemZ);
+    const crossed = prevZ <= itemZ && itemZ <= z + BOULDER_HIT_REACH;
+    const nearFront = itemZ >= z - .8 && itemZ <= z + BOULDER_HIT_REACH;
+    if (crossed || nearFront) destroyOnBoulder(this, lane, itemZ);
   }
 
-  if (z > 16) {
+  // Dust trail reinforces that the boulder is travelling, not spinning in place.
+  this.__boulderDustAt -= dt;
+  if (this.__boulderDustAt <= 0) {
+    this.__boulderDustAt = .055;
+    const dustPos = new T.Vector3(boulder.position.x, this.groundY + .08, z - BOULDER_RADIUS * .65);
+    this.burst(dustPos, true, 2);
+  }
+
+  if (z > 15) {
     boulder.visible = false;
     this.__boulderActive = false;
     this.__boulderNextAt = this.stats.time + BOULDER_INTERVAL;
-  } else if (z >= BOULDER_MIN_VISIBLE_Z) {
+  } else if (z >= BOULDER_VISIBLE_Z) {
     boulder.visible = true;
   }
 };
