@@ -73,10 +73,39 @@ function removeItem(game: any, item: any) {
   }
 }
 
+function activeBonus(state: any, now: number) {
+  return state.magnetUntil > now || state.shieldUntil > now;
+}
+
+function rampSurfaceY(game: any, item: any) {
+  const ramps = (game.items as any[]).filter((other: any) => other.type === 'ramp' || other.type === 'stairRamp');
+  let surface = 0;
+  for (const ramp of ramps) {
+    if (ramp.lane !== item.lane) continue;
+    const rel = item.mesh.position.z - ramp.mesh.position.z;
+    let height = 0;
+    if (ramp.type === 'ramp' && rel >= -1.9 && rel <= 2.9) {
+      const p = T.MathUtils.clamp((2.9 - rel) / 4.8, 0, 1);
+      height = p < .82 ? p * 1.65 : 1.65;
+    } else if (ramp.type === 'stairRamp' && rel >= -1.9 && rel <= 3.25) {
+      const p = T.MathUtils.clamp((3.25 - rel) / 4.5, 0, 1);
+      height = p < .82 ? p * 1.84 : 1.84;
+    }
+    surface = Math.max(surface, height);
+  }
+  return surface > 0 ? surface + .55 : null;
+}
+
+function keepBonusAboveRamp(game: any, item: any) {
+  const y = rampSurfaceY(game, item);
+  if (y !== null) item.mesh.position.y = y;
+  else if (item.mesh.position.y > 1.5) item.mesh.position.y = 2.32;
+}
+
 function activateBonus(game: any, item: any) {
   const state = ensureState(game);
   const now = game.stats.time as number;
-  if (now < BONUS_START_TIME) return;
+  if (now < BONUS_START_TIME || activeBonus(state, now)) return;
 
   const type: BonusType = item.mesh.userData.bonusType === 'shield' ? 'shield' : 'magnet';
   if (type === 'magnet') state.magnetUntil = now + BONUS_DURATION;
@@ -94,23 +123,24 @@ function prepareBonusItems(game: any) {
     const item = game.items[i];
     if (item.type !== 'bonusCoin') continue;
 
-    // No bonus item is deleted before 180s. Without bonusType it is the original orange +10 coin.
     const type = item.mesh.userData.bonusType as BonusType | undefined;
     if (!type) {
       if (item.mesh.userData.bonusVisual) restoreOrangeVisual(game, item);
       item.checked = true;
+      keepBonusAboveRamp(game, item);
       continue;
     }
 
-    // A powerup can never be active before 3 real minutes.
     if (now < BONUS_START_TIME) {
       restoreOrangeVisual(game, item);
       item.checked = true;
+      keepBonusAboveRamp(game, item);
       continue;
     }
 
     item.checked = true;
     if (!item.mesh.userData.bonusVisual) makeBonusVisual(item, type);
+    keepBonusAboveRamp(game, item);
   }
 }
 
@@ -137,13 +167,13 @@ function updateBonusHud(game: any, state: any) {
     game.host?.appendChild(hud);
     const style = document.createElement('style');
     style.textContent = `
-      .bonus-status { position:absolute; top:150px; left:28px; transform:none; display:flex; flex-wrap:wrap; gap:7px; max-width:280px; z-index:2; pointer-events:none; font:700 10px/1 Arial,sans-serif; letter-spacing:1px; text-transform:uppercase; }
+      .bonus-status { position:absolute; top:218px; left:28px; transform:none; display:flex; flex-wrap:wrap; gap:7px; max-width:280px; z-index:2; pointer-events:none; font:700 10px/1 Arial,sans-serif; letter-spacing:1px; text-transform:uppercase; }
       .bonus-badge { display:flex; align-items:center; gap:6px; padding:7px 10px; border:1px solid #ffffff70; border-radius:999px; background:#17152dcc; color:#fff; backdrop-filter:blur(5px); box-shadow:0 5px 18px #0002; }
       .bonus-dot { width:9px; height:9px; border-radius:50%; }
       .bonus-dot.magnet { background:#e94b62; }
       .bonus-dot.shield { background:#4b72e8; }
       @media(max-width:700px) {
-        .bonus-status { top:150px; left:12px; bottom:auto; max-width:calc(100vw - 24px); font-size:9px; gap:6px; }
+        .bonus-status { top:205px; left:12px; bottom:auto; max-width:calc(100vw - 24px); font-size:9px; gap:6px; }
         .bonus-badge { padding:6px 8px; }
       }
     `;
@@ -160,6 +190,14 @@ function updateBonusHud(game: any, state: any) {
 proto.start = function () {
   ORIGINALS.start.call(this);
   this.__bonusRamp = { magnetUntil: 0, shieldUntil: 0 };
+  const originalToast = this.onToast;
+  if (!(this as any).__coinToastFiltered) {
+    this.onToast = (text: string) => {
+      if (/^\d+ монет(?:\s|$)/.test(text)) return;
+      originalToast.call(this, text);
+    };
+    this.__coinToastFiltered = true;
+  }
   updateBonusHud(this, this.__bonusRamp);
 };
 
@@ -177,12 +215,12 @@ proto.die = function () {
 
 proto.step = function (dt: number) {
   const state = ensureState(this);
+  const nowBefore = this.stats.time as number;
 
   prepareBonusItems(this);
   collectBonusesBeforeCollision(this);
   ORIGINALS.step.call(this, dt);
 
-  // Newly spawned items are classified after the base spawn/collision pass.
   prepareBonusItems(this);
   collectBonusesBeforeCollision(this);
   if (this.mode !== 'playing') return;
@@ -194,11 +232,12 @@ proto.step = function (dt: number) {
       if (item.type !== 'coin') continue;
       const dz = item.mesh.position.z - 1.2;
       if (dz < -120 || dz > 3) continue;
-      const pull = Math.min(1, dt * 9);
-      // No lane filter: all three lanes are pulled toward the runner.
-      item.mesh.position.x = T.MathUtils.lerp(item.mesh.position.x, this.runner.position.x, pull);
+      const pull = Math.min(1, dt * 12);
+      const targetX = this.runner.position.x;
+      item.laneX = T.MathUtils.lerp(item.laneX, targetX - this.bendOff(item.mesh.position.z), pull);
+      item.mesh.position.x = item.laneX + this.bendOff(item.mesh.position.z);
       item.mesh.position.y = T.MathUtils.lerp(item.mesh.position.y, this.groundY + this.jump + .9, pull);
-      if (Math.abs(dz) < .9 && Math.abs(item.mesh.position.x - this.runner.position.x) < 1.0) {
+      if (Math.abs(dz) < .9 && Math.abs(item.mesh.position.x - targetX) < 1.0) {
         this.stats.coins++;
         addPersistentCoins(1);
         this.burst(item.mesh.position);
@@ -206,6 +245,17 @@ proto.step = function (dt: number) {
         this.recycle(item);
         this.items.splice(i, 1);
       }
+    }
+  }
+
+  // Keep the pull persistent through the base game's per-frame lane-position update.
+  if (state.magnetUntil > now && nowBefore <= now) {
+    for (const item of this.items as any[]) {
+      if (item.type !== 'coin') continue;
+      const dz = item.mesh.position.z - 1.2;
+      if (dz < -120 || dz > 3) continue;
+      item.laneX = T.MathUtils.lerp(item.laneX, this.runner.position.x - this.bendOff(item.mesh.position.z), Math.min(1, dt * 12));
+      item.mesh.position.x = item.laneX + this.bendOff(item.mesh.position.z);
     }
   }
 
