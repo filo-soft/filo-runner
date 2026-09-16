@@ -22,6 +22,7 @@ import "./ivan-guard-fix";
 import "./bonus-ramp-fix";
 import "./powerup-test-fix";
 import "./god-mode-fix";
+import "./god-time-fix";
 import "./footer-fix";
 import "./version-fix";
 import "./ui-readability-fix";
