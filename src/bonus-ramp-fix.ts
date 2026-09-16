@@ -6,12 +6,54 @@ const ORIGINALS = {
   start: proto.start,
   step: proto.step,
   die: proto.die,
+  spawn: proto.spawn,
 };
 const BONUS_DURATION = 15;
+
+type BonusType = 'magnet' | 'shield';
 
 function ensureState(game: any) {
   game.__bonusRamp = game.__bonusRamp || { magnetUntil: 0, shieldUntil: 0 };
   return game.__bonusRamp;
+}
+
+function makeBonusVisual(item: any, type: BonusType) {
+  const root = item.mesh as T.Group;
+  while (root.children.length) root.remove(root.children[0]);
+
+  const material = type === 'magnet'
+    ? new T.MeshStandardMaterial({ color: '#e94b62', emissive: '#6b1625', emissiveIntensity: .35, metalness: .2, roughness: .3 })
+    : new T.MeshStandardMaterial({ color: '#4b72e8', emissive: '#162b72', emissiveIntensity: .35, metalness: .2, roughness: .3 });
+  const glow = new T.MeshBasicMaterial({ color: type === 'magnet' ? '#ff6b80' : '#7190ff', transparent: true, opacity: .18 });
+
+  if (type === 'magnet') {
+    const bar = new T.BoxGeometry(.18, .62, .18);
+    const left = new T.Mesh(bar, material); left.position.set(-.22, .12, 0); root.add(left);
+    const right = new T.Mesh(bar, material); right.position.set(.22, .12, 0); root.add(right);
+    const arc = new T.Mesh(new T.TorusGeometry(.22, .09, 8, 18, Math.PI), material);
+    arc.rotation.z = Math.PI; arc.position.y = .34; root.add(arc);
+    const tip1 = new T.Mesh(new T.BoxGeometry(.22, .16, .22), material); tip1.position.set(-.22, -.2, 0); root.add(tip1);
+    const tip2 = new T.Mesh(new T.BoxGeometry(.22, .16, .22), material); tip2.position.set(.22, -.2, 0); root.add(tip2);
+  } else {
+    const shape = new T.Shape();
+    shape.moveTo(0, .42); shape.lineTo(.36, .18); shape.lineTo(.28, -.18); shape.lineTo(0, -.42); shape.lineTo(-.28, -.18); shape.lineTo(-.36, .18); shape.closePath();
+    const shield = new T.Mesh(new T.ExtrudeGeometry(shape, { depth: .13, bevelEnabled: true, bevelSize: .025, bevelThickness: .02, bevelSegments: 2 }), material);
+    shield.position.z = -.065; root.add(shield);
+  }
+
+  const aura = new T.Mesh(new T.SphereGeometry(.62, 16, 12), glow);
+  root.add(aura);
+  root.userData.bonusType = type;
+  root.userData.bonusVisual = true;
+}
+
+function ensureBonusVisuals(game: any, before: Set<any>) {
+  for (const item of game.items as any[]) {
+    if (item.type !== 'bonusCoin' || before.has(item)) continue;
+    const type: BonusType = Math.random() < .5 ? 'magnet' : 'shield';
+    item.mesh.userData.bonusType = type;
+    makeBonusVisual(item, type);
+  }
 }
 
 function updateBonusHud(game: any, state: any) {
@@ -22,47 +64,12 @@ function updateBonusHud(game: any, state: any) {
     game.host?.appendChild(hud);
     const style = document.createElement('style');
     style.textContent = `
-      .bonus-status {
-        position:absolute;
-        top:150px;
-        left:28px;
-        transform:none;
-        display:flex;
-        flex-wrap:wrap;
-        gap:7px;
-        max-width:280px;
-        z-index:2;
-        pointer-events:none;
-        font:700 10px/1 Arial,sans-serif;
-        letter-spacing:1px;
-        text-transform:uppercase;
-      }
-      .bonus-badge {
-        display:flex;
-        align-items:center;
-        gap:6px;
-        padding:7px 10px;
-        border:1px solid #ffffff70;
-        border-radius:999px;
-        background:#17152dcc;
-        color:#fff;
-        backdrop-filter:blur(5px);
-        box-shadow:0 5px 18px #0002;
-      }
+      .bonus-status { position:absolute; top:150px; left:28px; transform:none; display:flex; flex-wrap:wrap; gap:7px; max-width:280px; z-index:2; pointer-events:none; font:700 10px/1 Arial,sans-serif; letter-spacing:1px; text-transform:uppercase; }
+      .bonus-badge { display:flex; align-items:center; gap:6px; padding:7px 10px; border:1px solid #ffffff70; border-radius:999px; background:#17152dcc; color:#fff; backdrop-filter:blur(5px); box-shadow:0 5px 18px #0002; }
       .bonus-dot { width:9px; height:9px; border-radius:50%; }
       .bonus-dot.magnet { background:#e94b62; }
       .bonus-dot.shield { background:#4b72e8; }
-      @media(max-width:700px) {
-        .bonus-status {
-          top:auto;
-          left:12px;
-          bottom:22px;
-          max-width:calc(100vw - 24px);
-          font-size:9px;
-          gap:6px;
-        }
-        .bonus-badge { padding:6px 8px; }
-      }
+      @media(max-width:700px) { .bonus-status { top:auto; left:12px; bottom:22px; max-width:calc(100vw - 24px); font-size:9px; gap:6px; } .bonus-badge { padding:6px 8px; } }
     `;
     document.head.appendChild(style);
   }
@@ -78,6 +85,12 @@ proto.start = function () {
   ORIGINALS.start.call(this);
   this.__bonusRamp = { magnetUntil: 0, shieldUntil: 0 };
   updateBonusHud(this, this.__bonusRamp);
+};
+
+proto.spawn = function () {
+  const before = new Set(this.items as any[]);
+  ORIGINALS.spawn.call(this);
+  ensureBonusVisuals(this, before);
 };
 
 proto.die = function () {
@@ -98,9 +111,6 @@ proto.step = function (dt: number) {
   if (this.mode !== 'playing') return;
 
   const now = this.stats.time as number;
-
-  // Orange bonus coin is the only bonus pickup. It is spawned by late-game-fix
-  // only after 3 real minutes, or on the late-game staircase ramp.
   for (let i = this.items.length - 1; i >= 0; i--) {
     const item = this.items[i];
     if (item.type !== 'bonusCoin') continue;
@@ -109,7 +119,7 @@ proto.step = function (dt: number) {
       Math.abs(item.mesh.position.x - this.runner.position.x) < .85 &&
       Math.abs(item.mesh.position.y - (this.groundY + this.jump + .9)) < 1.15
     ) {
-      const type: 'magnet' | 'shield' = Math.random() < .5 ? 'magnet' : 'shield';
+      const type: BonusType = item.mesh.userData.bonusType || (Math.random() < .5 ? 'magnet' : 'shield');
       if (type === 'magnet') state.magnetUntil = now + BONUS_DURATION;
       else state.shieldUntil = now + BONUS_DURATION;
       this.onToast(type === 'magnet' ? 'Магнит активирован · 15 секунд' : 'Щит активирован · 15 секунд');
