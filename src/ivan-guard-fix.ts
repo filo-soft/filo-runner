@@ -24,6 +24,7 @@ const IVAN_RETREAT_SPEED = .85;
 const IVAN_CHASE_SPEED = 8.2;
 const IVAN_CATCH_GAP = .72;
 const IVAN_INTRO_SECONDS = 5.6;
+const IVAN_POST_HIT_VISIBLE_SECONDS = 5.6;
 const IVAN_CHASE_START_GAP = 12.5;
 const IVAN_FOV_NORMAL = 47;
 const IVAN_FOV_IVAN = 60;
@@ -73,18 +74,19 @@ const cloneBlueGuard = (game: IvanGame) => {
     mesh.receiveShadow = true;
   }
 
-  // Camera is on the +Z side. Keep the label flat on Ivan's local -Z back face.
+  // Ivan runs in the same direction as the player (both face -Z).
+  // The camera is on +Z, so the back label sits on local -Z.
   const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 256;
+  canvas.width = 2048;
+  canvas.height = 512;
   const ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = '900 170px Arial, Helvetica, sans-serif';
+    ctx.font = '900 340px Arial, Helvetica, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = blue.color.getStyle();
-    ctx.fillText('IVAN', 512, 128);
+    ctx.fillText('IVAN', 1024, 256);
     const texture = new T.CanvasTexture(canvas);
     texture.colorSpace = T.SRGBColorSpace;
     texture.anisotropy = 8;
@@ -95,7 +97,9 @@ const cloneBlueGuard = (game: IvanGame) => {
     );
     label.name = 'IVANBackLabel';
     label.position.set(0, 1.72, -.285);
-    label.rotation.set(0, 0, 0);
+    // Root is rotated PI while running. Rotate the label another PI so the
+    // word is physically flat on the back and reads exactly IVAN, not mirrored.
+    label.rotation.set(0, Math.PI, 0);
     root.add(label);
   }
 
@@ -151,7 +155,9 @@ const showIntroIvan = (game: IvanGame) => {
 const showHitIvan = (game: IvanGame) => {
   cloneBlueGuard(game);
   if (!game.__ivanGuardRoot) return;
-  game.__ivanIntroRemaining = 0;
+  // A real hit always brings Ivan in, even during the initial intro appearance.
+  // Keep him visible long enough to make the event unmistakable.
+  game.__ivanIntroRemaining = IVAN_POST_HIT_VISIBLE_SECONDS;
   game.__ivanGuardGap = IVAN_START_GAP;
   game.__ivanGuardLaneX = (game as any).runner.position.x;
   game.__ivanGuardRoot.position.set(game.__ivanGuardLaneX, (game as any).groundY, PLAYER_Z + IVAN_START_GAP);
@@ -234,8 +240,11 @@ proto.step = function (dt: number) {
 
     if (actualHit) {
       const state = game.__ivanGuardState || 'hidden';
-      if (state === 'retreat' && (game.__ivanIntroRemaining ?? 0) <= 0) {
+      // A real obstacle hit has priority over the intro/retreat timer.
+      // First hit: Ivan appears and retreats. Next real hit: Ivan chases.
+      if (state === 'retreat') {
         setIvanState(game, 'chase');
+        game.__ivanIntroRemaining = 0;
         game.__ivanGuardGap = Math.max(IVAN_CHASE_START_GAP, (game.__ivanGuardGap ?? IVAN_START_GAP) * 1.6);
         if (game.onToast) game.onToast('Иван догоняет');
       } else if (state === 'hidden') {
