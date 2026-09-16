@@ -98,7 +98,7 @@ const cloneBlueGuard = (game: IvanGame) => {
     label.name = 'IVANBackLabel';
     label.position.set(0, 1.72, -.285);
     // Root is rotated PI while running. Rotate the label another PI so the
-    // word is physically flat on the back and reads exactly IVAN, not mirrored.
+    // word is flat on the back and reads exactly IVAN, not mirrored.
     label.rotation.set(0, Math.PI, 0);
     root.add(label);
   }
@@ -155,8 +155,7 @@ const showIntroIvan = (game: IvanGame) => {
 const showHitIvan = (game: IvanGame) => {
   cloneBlueGuard(game);
   if (!game.__ivanGuardRoot) return;
-  // A real hit always brings Ivan in, even during the initial intro appearance.
-  // Keep him visible long enough to make the event unmistakable.
+  // A real first hit always brings/keeps Ivan in view for a full visible interval.
   game.__ivanIntroRemaining = IVAN_POST_HIT_VISIBLE_SECONDS;
   game.__ivanGuardGap = IVAN_START_GAP;
   game.__ivanGuardLaneX = (game as any).runner.position.x;
@@ -240,15 +239,15 @@ proto.step = function (dt: number) {
 
     if (actualHit) {
       const state = game.__ivanGuardState || 'hidden';
-      // A real obstacle hit has priority over the intro/retreat timer.
-      // First hit: Ivan appears and retreats. Next real hit: Ivan chases.
-      if (state === 'retreat') {
-        setIvanState(game, 'chase');
-        game.__ivanIntroRemaining = 0;
+      // First real hit = Ivan appears / remains visible. Second real hit = chase.
+      // Jumping and sliding never reach this branch because hit-protection only records real collisions.
+      if (state === 'hidden') {
+        showHitIvan(game);
+      } else if (state === 'retreat') {
+        showHitIvan(game);
+      } else if (state === 'chase') {
         game.__ivanGuardGap = Math.max(IVAN_CHASE_START_GAP, (game.__ivanGuardGap ?? IVAN_START_GAP) * 1.6);
         if (game.onToast) game.onToast('Иван догоняет');
-      } else if (state === 'hidden') {
-        showHitIvan(game);
       }
     }
   }
