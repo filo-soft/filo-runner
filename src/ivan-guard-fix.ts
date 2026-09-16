@@ -19,14 +19,17 @@ const previousStart = proto.start;
 const previousMenu = proto.menu;
 
 const PLAYER_Z = 1.2;
-const IVAN_START_GAP = 9.0;
-const IVAN_MAX_GAP = 24;
-const IVAN_RETREAT_SPEED = .85;
+// Camera is at roughly z=10.5 and the near plane is .3. A 9-unit gap put
+// Ivan at z=10.2 — essentially inside the camera near plane, so he was invisible.
+// Keep him clearly behind the player but safely inside the camera frustum.
+const IVAN_START_GAP = 6.0;
+const IVAN_MAX_GAP = 8.0;
+const IVAN_RETREAT_SPEED = .65;
 const IVAN_CHASE_SPEED = 8.2;
 const IVAN_CATCH_GAP = .72;
 const IVAN_INTRO_SECONDS = 5.6;
 const IVAN_POST_HIT_VISIBLE_SECONDS = 5.6;
-const IVAN_CHASE_START_GAP = 12.5;
+const IVAN_CHASE_START_GAP = 7.0;
 const IVAN_FOV_NORMAL = 47;
 const IVAN_FOV_IVAN = 60;
 const IVAN_CAMERA_RESPONSE = 5;
@@ -243,9 +246,8 @@ proto.step = function (dt: number) {
     if (actualHit) {
       const hits = (game.__ivanRealHits ?? 0) + 1;
       game.__ivanRealHits = hits;
-      const state = game.__ivanGuardState || 'hidden';
 
-      // First real obstacle hit: Ivan must appear/stay visible.
+      // First real obstacle hit: Ivan appears/stays visible.
       // Second real obstacle hit: Ivan switches to the chase.
       // Jumping/sliding do not reach this branch because hit-protection only records real hits.
       if (hits === 1) {
@@ -253,7 +255,7 @@ proto.step = function (dt: number) {
       } else if (hits >= 2) {
         setIvanState(game, 'chase');
         game.__ivanIntroRemaining = 0;
-        game.__ivanGuardGap = Math.max(IVAN_CHASE_START_GAP, (game.__ivanGuardGap ?? IVAN_START_GAP) * 1.6);
+        game.__ivanGuardGap = Math.max(IVAN_CHASE_START_GAP, (game.__ivanGuardGap ?? IVAN_START_GAP) * 1.15);
         if (game.onToast) game.onToast('Иван догоняет');
       }
     }
