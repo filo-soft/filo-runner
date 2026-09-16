@@ -15,11 +15,12 @@ const RAMP_START = 0;
 const RAMP_TOP_START = 7;
 const RAMP_END = 30;
 const RAMP_SAFE_END = 58;
+const RAMP_WIDTH = 2.15;
 const BONUS_DURATION = 15;
 
 function makeIcon(kind: 'magnet' | 'shield') {
   const root = new T.Group();
-  const glow = new T.MeshBasicMaterial({ color: kind === 'magnet' ? '#e94b62' : '#4b72e8', transparent: true, opacity: .16 });
+  const glow = new T.MeshBasicMaterial({ color: kind === 'magnet' ? '#e94b62' : '#4b72e8', transparent: true, opacity: .16, depthWrite: false });
   const body = new T.MeshStandardMaterial({ color: kind === 'magnet' ? '#d92f49' : '#3157c8', roughness: .3, metalness: .25, emissive: kind === 'magnet' ? '#5a1020' : '#101d64', emissiveIntensity: .45 });
   if (kind === 'magnet') {
     const horseshoe = new T.Mesh(new T.TorusGeometry(.34, .11, 8, 24, Math.PI), body); horseshoe.rotation.z = Math.PI; root.add(horseshoe);
@@ -39,13 +40,17 @@ function makeRamp() {
   const marble = new T.MeshStandardMaterial({ color: '#e9dfcc', roughness: .82 });
   const trim = new T.MeshStandardMaterial({ color: '#f7eddc', roughness: .72 });
   const accent = new T.MeshStandardMaterial({ color: '#5148b7', roughness: .4, metalness: .15 });
-  // Five broad stairs lead onto a long elevated deck; the deck ends completely open for the jump down.
+  // One-lane ramp: stairs lead onto a long single-lane deck, matching the original mechanic.
   for (let i = 0; i < 5; i++) {
-    const step = new T.Mesh(new T.BoxGeometry(6.55, .4 * (i + 1), 1.18), marble); step.position.set(0, .2 * (i + 1), .6 + i * 1.18); step.castShadow = step.receiveShadow = true; root.add(step);
+    const step = new T.Mesh(new T.BoxGeometry(RAMP_WIDTH, .4 * (i + 1), 1.18), marble);
+    step.position.set(0, .2 * (i + 1), .6 + i * 1.18); step.castShadow = step.receiveShadow = true; root.add(step);
   }
-  const deck = new T.Mesh(new T.BoxGeometry(6.55, .34, 23.0), marble); deck.position.set(0, 2.08, 18.5); deck.castShadow = deck.receiveShadow = true; root.add(deck);
-  for (const x of [-3.12, 3.12]) { const rail = new T.Mesh(new T.BoxGeometry(.12, .16, 22.2), trim); rail.position.set(x, 2.31, 18.5); rail.castShadow = true; root.add(rail); }
-  for (let i = 0; i < 7; i++) { const stripe = new T.Mesh(new T.BoxGeometry(6.1, .025, .08), accent); stripe.position.set(0, 2.255, 9.3 + i * 2.65); root.add(stripe); }
+  const deck = new T.Mesh(new T.BoxGeometry(RAMP_WIDTH, .34, 23.0), marble); deck.position.set(0, 2.08, 18.5); deck.castShadow = deck.receiveShadow = true; root.add(deck);
+  // Very low edge trims only; they do not widen the playable lane.
+  for (const x of [-(RAMP_WIDTH / 2 - .06), RAMP_WIDTH / 2 - .06]) {
+    const rail = new T.Mesh(new T.BoxGeometry(.06, .12, 22.2), trim); rail.position.set(x, 2.31, 18.5); rail.castShadow = true; root.add(rail);
+  }
+  for (let i = 0; i < 7; i++) { const stripe = new T.Mesh(new T.BoxGeometry(RAMP_WIDTH - .12, .025, .08), accent); stripe.position.set(0, 2.255, 9.3 + i * 2.65); root.add(stripe); }
   return root;
 }
 
@@ -58,8 +63,7 @@ function updateBonusHud(game: any, state: any) {
   let hud = document.querySelector('.bonus-status') as HTMLDivElement | null;
   if (!hud) {
     hud = document.createElement('div'); hud.className = 'bonus-status'; game.host?.appendChild(hud);
-    const style = document.createElement('style'); style.textContent = `.bonus-status{position:absolute;top:92px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:12;pointer-events:none;font:700 10px/1 Arial,sans-serif;letter-spacing:1px;text-transform:uppercase}.bonus-badge{display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid #ffffff70;border-radius:999px;background:#17152dcc;color:#fff;backdrop-filter:blur(5px);box-shadow:0 5px 18px #0002}.bonus-dot{width:9px;height:9px;border-radius:50%}.bonus-dot.magnet{background:#e94b62}.bonus-dot.shield{background:#4b72e8}@media(max-width:700px){.bonus-status{top:76px;font-size:9px}.bonus-badge{padding:6px 8px}}`;
-    document.head.appendChild(style);
+    const style = document.createElement('style'); style.textContent = `.bonus-status{position:absolute;top:92px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:12;pointer-events:none;font:700 10px/1 Arial,sans-serif;letter-spacing:1px;text-transform:uppercase}.bonus-badge{display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid #ffffff70;border-radius:999px;background:#17152dcc;color:#fff;backdrop-filter:blur(5px);box-shadow:0 5px 18px #0002}.bonus-dot{width:9px;height:9px;border-radius:50%}.bonus-dot.magnet{background:#e94b62}.bonus-dot.shield{background:#4b72e8}@media(max-width:700px){.bonus-status{top:76px;font-size:9px}.bonus-badge{padding:6px 8px}}`; document.head.appendChild(style);
   }
   const now = game.stats.time as number; const parts: string[] = [];
   if (state.magnetUntil > now) parts.push(`<span class="bonus-badge"><i class="bonus-dot magnet"></i>МАГНИТ ${Math.ceil(state.magnetUntil-now)}с</span>`);
@@ -71,7 +75,7 @@ function spawnRamp(game: any) {
   if (RAMPS.some(r => r.z < 20 && r.z > -130)) return;
   const mesh = makeRamp(); mesh.position.set(game.bendOff(RAMP_Z), 0, RAMP_Z); game.scene.add(mesh);
   const ramp: Ramp = { mesh, z: RAMP_Z }; RAMPS.push(ramp);
-  // Remove any already-spawned obstacles in the full approach/deck/landing corridor.
+  // Clear every non-coin obstacle in the full approach, deck and landing zone.
   for (let i = game.items.length - 1; i >= 0; i--) {
     const item = game.items[i];
     if (item.type !== 'coin' && item.type !== 'gate' && item.mesh.position.z > RAMP_Z - 6 && item.mesh.position.z < RAMP_Z + RAMP_SAFE_END) {
@@ -79,13 +83,15 @@ function spawnRamp(game: any) {
     }
   }
   const state = ensureState(game); state.rampCounter++;
-  // Deliberately rare: one bonus on every second ramp, never both together.
+  // Bonuses are sparse and occupy the center of the one-lane deck, separate from coin rows.
   if (state.rampCounter % 2 === 0) {
     const type = state.rampCounter % 4 === 0 ? 'shield' : 'magnet';
-    const lane = state.rampCounter % 3 - 1;
-    const bonusZ = RAMP_Z + 15;
-    const bonus = makeIcon(type); bonus.position.set(lane * 2.2 + game.bendOff(bonusZ), 2.95, bonusZ); bonus.scale.setScalar(.95); game.scene.add(bonus);
-    BONUSES.push({ mesh: bonus, type, z: bonusZ, lane, collected: false }); ramp.bonusZ = bonusZ;
+    const bonusZ = RAMP_Z + 16.5;
+    const bonus = makeIcon(type);
+    bonus.position.set(game.bendOff(bonusZ), 3.02, bonusZ);
+    bonus.scale.setScalar(.88);
+    game.scene.add(bonus);
+    BONUSES.push({ mesh: bonus, type, z: bonusZ, lane: 0, collected: false }); ramp.bonusZ = bonusZ;
   }
 }
 
@@ -97,6 +103,7 @@ proto.start = function () {
   updateBonusHud(this, this.__bonusRamp);
 };
 
+// While a ramp and its landing corridor are active, normal obstacles are not spawned.
 proto.spawn = function () {
   if (RAMPS.some(r => r.z < RAMP_SAFE_END && r.z > -120)) return;
   ORIGINALS.spawn.call(this);
@@ -127,6 +134,7 @@ proto.step = function (dt: number) {
     if (ramp.z > 20) { this.scene.remove(ramp.mesh); RAMPS.splice(i, 1); }
   }
 
+  // Follow the stair/deck height. Once past the open end, return to normal ground immediately.
   let rampY = 0; let onRamp = false;
   for (const ramp of RAMPS) {
     const rel = 1.2 - ramp.z;
@@ -134,11 +142,14 @@ proto.step = function (dt: number) {
     else if (rel >= RAMP_TOP_START && rel <= RAMP_END) { rampY = Math.max(rampY, 2); onRamp = true; }
   }
   if (onRamp) this.groundY = rampY;
+  else this.groundY = 0;
 
   for (let i = BONUSES.length - 1; i >= 0; i--) {
-    const bonus = BONUSES[i]; bonus.z += moved; bonus.mesh.position.z = bonus.z; bonus.mesh.position.x = bonus.lane * 2.2 + this.bendOff(bonus.z);
-    bonus.mesh.rotation.y += dt * 2.4; bonus.mesh.rotation.z = Math.sin(this.phase * .7) * .08; bonus.mesh.position.y = 2.88 + Math.sin(this.phase * .9 + i) * .1;
-    if (!bonus.collected && Math.abs(bonus.z - 1.2) < 1.0 && Math.abs(bonus.mesh.position.x - this.runner.position.x) < .9 && Math.abs(bonus.mesh.position.y - (this.groundY + this.jump + 1)) < 1.25) {
+    const bonus = BONUSES[i]; bonus.z += moved; bonus.mesh.position.z = bonus.z; bonus.mesh.position.x = this.bendOff(bonus.z);
+    bonus.mesh.rotation.y += dt * 2.4; bonus.mesh.rotation.z = Math.sin(this.phase * .7) * .08;
+    // Fixed to the deck surface, with enough clearance that it cannot clip into the ramp texture.
+    bonus.mesh.position.y = 3.05 + Math.sin(this.phase * .9 + i) * .08;
+    if (!bonus.collected && Math.abs(bonus.z - 1.2) < 1.0 && Math.abs(bonus.mesh.position.x - this.runner.position.x) < 1.0 && Math.abs(bonus.mesh.position.y - (this.groundY + this.jump + 1)) < 1.35) {
       bonus.collected = true;
       if (bonus.type === 'magnet') { state.magnetUntil = now + BONUS_DURATION; this.onToast('Магнит активирован · 15 секунд'); this.tone(520, .14, 980); }
       else { state.shieldUntil = now + BONUS_DURATION; this.onToast('Щит активирован · 15 секунд'); this.tone(360, .18, 760); }
@@ -148,7 +159,7 @@ proto.step = function (dt: number) {
   }
 
   if (state.magnetUntil > now) {
-    // Pull every currently spawned coin on the visible track, not just the nearest few.
+    // Coins are pulled from the spawned path; the bonus itself is never part of game.items.
     for (let i = this.items.length - 1; i >= 0; i--) {
       const item = this.items[i]; if (item.type !== 'coin') continue;
       const dz = item.mesh.position.z - 1.2; if (dz < -120 || dz > 3) continue;
