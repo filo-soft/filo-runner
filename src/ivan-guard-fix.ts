@@ -18,15 +18,15 @@ const previousStart = proto.start;
 const previousMenu = proto.menu;
 
 const PLAYER_Z = 1.2;
-const IVAN_START_GAP = 4.4;
-const IVAN_MAX_GAP = 12;
-const IVAN_RETREAT_SPEED = 2.2;
+const IVAN_START_GAP = 5.8;
+const IVAN_MAX_GAP = 18;
+const IVAN_RETREAT_SPEED = 1.15;
 const IVAN_CHASE_SPEED = 8.2;
 const IVAN_CATCH_GAP = .72;
 const IVAN_INTRO_SECONDS = 3.5;
 const IVAN_FOV_NORMAL = 47;
-const IVAN_FOV_IVAN = 54;
-const IVAN_CAMERA_RESPONSE = 7;
+const IVAN_FOV_IVAN = 60;
+const IVAN_CAMERA_RESPONSE = 5;
 const IVAN_LANE_RESPONSE = 9;
 const IVAN_X_OFFSET = 0;
 
@@ -46,7 +46,6 @@ const cloneBlueGuard = (game: IvanGame) => {
   const guardMeshes: T.Mesh[] = [];
   root.traverse((o: T.Object3D) => { const m = o as T.Mesh; if (m.isMesh) guardMeshes.push(m); });
 
-  // Remove the wreath and recolor only the existing light cloth to the corporate blue.
   for (const mesh of guardMeshes) {
     const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const green = mats.some((mat: any) => {
@@ -74,8 +73,8 @@ const cloneBlueGuard = (game: IvanGame) => {
     mesh.receiveShadow = true;
   }
 
-  // The player runs with rotation.y = PI, therefore +local-Z is Ivan's back toward camera.
-  // The label is attached to that back face, so it is readable from behind during the chase.
+  // Camera is on the +Z side. With the player's PI Y rotation, the visible back face is local -Z.
+  // Put the label there so it is physically on Ivan's back and readable from the camera.
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 144;
@@ -95,7 +94,8 @@ const cloneBlueGuard = (game: IvanGame) => {
       new T.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: T.DoubleSide }),
     );
     label.name = 'IVANBackLabel';
-    label.position.set(0, 1.72, .285);
+    label.position.set(0, 1.72, -.285);
+    label.rotation.y = Math.PI;
     root.add(label);
   }
 
@@ -122,8 +122,6 @@ const copyRunningPose = (game: IvanGame) => {
     target[i].scale.copy(source[i].scale);
   }
 
-  // The previous implementation copied only bones. That left Ivan's root at its menu rotation,
-  // which made him run toward the camera. Keep the entire character orientation identical.
   root.rotation.y = player.rotation.y;
   root.rotation.z = player.rotation.z;
 };
@@ -195,8 +193,6 @@ const updateIvan = (game: IvanGame, dt: number) => {
   const response = state === 'chase' ? IVAN_LANE_RESPONSE * 1.6 : IVAN_LANE_RESPONSE;
   game.__ivanGuardLaneX = T.MathUtils.damp(currentX, desiredX, response, dt);
 
-  // In this runner the player is at z=+1.2 and the camera is farther toward +Z.
-  // Positive gap therefore places Ivan behind the player, with his back facing the camera.
   const targetZ = player.position.z + game.__ivanGuardGap;
   root.position.x = game.__ivanGuardLaneX;
   root.position.y = (game as any).groundY;
@@ -238,8 +234,6 @@ proto.step = function (dt: number) {
 
     if (actualHit) {
       const state = game.__ivanGuardState || 'hidden';
-      // Only a genuine collision can trigger this. Jumping over or ducking under an obstacle
-      // never sets __actualHitItem in hit-protection.ts.
       if (state === 'retreat' && (game.__ivanIntroRemaining ?? 0) <= 0) {
         setIvanState(game, 'chase');
         game.__ivanGuardGap = Math.max(IVAN_CATCH_GAP, game.__ivanGuardGap ?? IVAN_START_GAP);
