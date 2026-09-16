@@ -84,7 +84,7 @@ const cloneBlueGuard = (game: IvanGame) => {
     ctx.font = '900 94px Arial, Helvetica, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = blue.color.getStyle();
     ctx.fillText('IVAN', 256, 72);
     const texture = new T.CanvasTexture(canvas);
     texture.colorSpace = T.SRGBColorSpace;
