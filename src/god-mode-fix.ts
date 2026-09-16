@@ -18,7 +18,6 @@ proto.start = function (...args: any[]) {
 
 proto.toggleGodMode = function () {
   this.__godMode = !this.__godMode;
-  // Very small visual pulse for confirmation; no text or HUD is shown.
   if (typeof this.burst === 'function') {
     this.burst(this.runner.position.clone().setY(this.groundY + 1.05).setZ(1.2), false, 4);
   }
@@ -32,10 +31,19 @@ proto.die = function (...args: any[]) {
 };
 
 window.addEventListener('keydown', e => {
-  // KeyA is the physical A key: on a Russian layout it is Ф.
-  if (e.code !== 'KeyA' || e.repeat) return;
   const game = (window as any).__filoGodGame;
-  if (!game || game.mode !== 'menu') return;
-  e.preventDefault();
-  game.toggleGodMode();
+  if (!game || e.repeat) return;
+
+  // KeyA is the physical A key: on a Russian layout it is Ф.
+  if (e.code === 'KeyA' && game.mode === 'menu') {
+    e.preventDefault();
+    game.toggleGodMode();
+    return;
+  }
+
+  // Developer test controls are available only during an active god-mode run.
+  if (!game.__godMode || game.mode !== 'playing') return;
+  if (e.code === 'Digit1') { e.preventDefault(); game.launchTestBoulder?.(); }
+  if (e.code === 'Digit2') { e.preventDefault(); game.spawnTestPowerup?.('shield'); }
+  if (e.code === 'Digit3') { e.preventDefault(); game.spawnTestPowerup?.('magnet'); }
 });
