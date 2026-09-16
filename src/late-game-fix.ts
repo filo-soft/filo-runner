@@ -95,13 +95,15 @@ proto.supportAt = function (z: number) {
 
 proto.spawn = function () {
   const distance = this.stats.distance as number;
+  const time = this.stats.time as number;
   const completedRow = (this.row as number) - 1;
   const beforeItems = new Set((this.items as any[]));
   originalSpawn.call(this);
 
-  // From 3 minutes onward, a 5% chance per newly spawned row turns one normal
-  // coin into the orange bonus coin. The orange coin is the dedicated bonus slot.
-  if (distance >= 360 && Math.random() < .05) {
+  // Bonus coins start only after 3 real minutes of play, not by distance.
+  // Distance is intentionally not used here because speed/physics can make
+  // the old 360m threshold occur before 180 seconds.
+  if (time >= 180 && Math.random() < .05) {
     const newCoins = (this.items as any[]).filter((item: any) =>
       !beforeItems.has(item) && item.type === 'coin'
     );
