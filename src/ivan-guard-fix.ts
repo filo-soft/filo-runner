@@ -9,6 +9,7 @@ type IvanGame = RunnerGame & {
   __ivanGuardLaneX?: number;
   __ivanGuardFovTarget?: number;
   __ivanIntroRemaining?: number;
+  __ivanRealHits?: number;
   __actualHitItem?: any;
 };
 
@@ -213,6 +214,7 @@ const updateIvan = (game: IvanGame, dt: number) => {
 proto.start = function () {
   previousStart.call(this);
   const game = this as IvanGame;
+  game.__ivanRealHits = 0;
   cloneBlueGuard(game);
   showIntroIvan(game);
   const camera = (game as any).camera as T.PerspectiveCamera;
@@ -223,6 +225,7 @@ proto.start = function () {
 proto.menu = function () {
   previousMenu.call(this);
   const game = this as IvanGame;
+  game.__ivanRealHits = 0;
   game.__ivanIntroRemaining = 0;
   setIvanState(game, 'hidden');
 };
@@ -238,14 +241,18 @@ proto.step = function (dt: number) {
     delete game.__actualHitItem;
 
     if (actualHit) {
+      const hits = (game.__ivanRealHits ?? 0) + 1;
+      game.__ivanRealHits = hits;
       const state = game.__ivanGuardState || 'hidden';
-      // First real hit = Ivan appears / remains visible. Second real hit = chase.
-      // Jumping and sliding never reach this branch because hit-protection only records real collisions.
-      if (state === 'hidden') {
+
+      // First real obstacle hit: Ivan must appear/stay visible.
+      // Second real obstacle hit: Ivan switches to the chase.
+      // Jumping/sliding do not reach this branch because hit-protection only records real hits.
+      if (hits === 1) {
         showHitIvan(game);
-      } else if (state === 'retreat') {
-        showHitIvan(game);
-      } else if (state === 'chase') {
+      } else if (hits >= 2) {
+        setIvanState(game, 'chase');
+        game.__ivanIntroRemaining = 0;
         game.__ivanGuardGap = Math.max(IVAN_CHASE_START_GAP, (game.__ivanGuardGap ?? IVAN_START_GAP) * 1.6);
         if (game.onToast) game.onToast('Иван догоняет');
       }
