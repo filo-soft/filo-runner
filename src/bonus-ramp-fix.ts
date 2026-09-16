@@ -21,7 +21,49 @@ function updateBonusHud(game: any, state: any) {
     hud.className = 'bonus-status';
     game.host?.appendChild(hud);
     const style = document.createElement('style');
-    style.textContent = `.bonus-status{position:absolute;top:92px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:12;pointer-events:none;font:700 10px/1 Arial,sans-serif;letter-spacing:1px;text-transform:uppercase}.bonus-badge{display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid #ffffff70;border-radius:999px;background:#17152dcc;color:#fff;backdrop-filter:blur(5px);box-shadow:0 5px 18px #0002}.bonus-dot{width:9px;height:9px;border-radius:50%}.bonus-dot.magnet{background:#e94b62}.bonus-dot.shield{background:#4b72e8}@media(max-width:700px){.bonus-status{top:76px;font-size:9px}.bonus-badge{padding:6px 8px}}`;
+    style.textContent = `
+      .bonus-status {
+        position:absolute;
+        top:150px;
+        left:28px;
+        transform:none;
+        display:flex;
+        flex-wrap:wrap;
+        gap:7px;
+        max-width:280px;
+        z-index:2;
+        pointer-events:none;
+        font:700 10px/1 Arial,sans-serif;
+        letter-spacing:1px;
+        text-transform:uppercase;
+      }
+      .bonus-badge {
+        display:flex;
+        align-items:center;
+        gap:6px;
+        padding:7px 10px;
+        border:1px solid #ffffff70;
+        border-radius:999px;
+        background:#17152dcc;
+        color:#fff;
+        backdrop-filter:blur(5px);
+        box-shadow:0 5px 18px #0002;
+      }
+      .bonus-dot { width:9px; height:9px; border-radius:50%; }
+      .bonus-dot.magnet { background:#e94b62; }
+      .bonus-dot.shield { background:#4b72e8; }
+      @media(max-width:700px) {
+        .bonus-status {
+          top:auto;
+          left:12px;
+          bottom:22px;
+          max-width:calc(100vw - 24px);
+          font-size:9px;
+          gap:6px;
+        }
+        .bonus-badge { padding:6px 8px; }
+      }
+    `;
     document.head.appendChild(style);
   }
   const now = game.stats.time as number;
@@ -58,7 +100,7 @@ proto.step = function (dt: number) {
   const now = this.stats.time as number;
 
   // Orange bonus coin is the only bonus pickup. It is spawned by late-game-fix
-  // as a replacement for a normal coin after the 3-minute threshold.
+  // only after 3 real minutes, or on the late-game staircase ramp.
   for (let i = this.items.length - 1; i >= 0; i--) {
     const item = this.items[i];
     if (item.type !== 'bonusCoin') continue;
