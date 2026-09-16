@@ -17,7 +17,6 @@ import "./cityscape-sparse-fix";
 import "./branding-fix";
 import "./hit-protection";
 import "./boulder-fix";
-import "./temple-tunnel-fix";
 import "./ivan-guard-fix";
 import "./version-fix";
 import "./ui-readability-fix";
