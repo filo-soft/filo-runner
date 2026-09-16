@@ -156,7 +156,9 @@ proto.step = function (dt: number) {
   if (this.mode === 'playing') {
     for (let i = this.items.length - 1; i >= 0; i--) {
       const item = this.items[i];
-      if (item.type !== 'bonusCoin') continue;
+      // bonusCoin is the old orange +10 pickup only when it has no powerup type.
+      // Magnet/shield pickups are handled by bonus-ramp-fix and must never also grant +10.
+      if (item.type !== 'bonusCoin' || item.mesh.userData.bonusType) continue;
       const z = item.mesh.position.z as number;
       if (Math.abs(z - 1.2) < .7 &&
           Math.abs(item.mesh.position.x - this.runner.position.x) < .7 &&
