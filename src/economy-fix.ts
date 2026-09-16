@@ -118,20 +118,6 @@ const bootInitialUi = () => {
   window.setTimeout(() => observer.disconnect(), 5000);
 };
 
-const replaceCoinWithBonus = (game: any, coin: any) => {
-  const lane = coin.lane as number;
-  const z = coin.mesh.position.z as number;
-  const y = coin.mesh.position.y as number;
-  game.recycle(coin);
-  const index = game.items.indexOf(coin);
-  if (index >= 0) game.items.splice(index, 1);
-  const bonus = game.addItem('bonusCoin', lane, z);
-  bonus.mesh.position.y = y;
-  bonus.laneX = lane * 2.2;
-  bonus.mesh.position.x = bonus.laneX + game.bendOff(z);
-  return bonus;
-};
-
 proto.start = function () {
   originalStart.call(this);
   this.__balanceRunCoins = 0;
@@ -175,8 +161,9 @@ proto.step = function (dt: number) {
       if (Math.abs(z - 1.2) < .7 &&
           Math.abs(item.mesh.position.x - this.runner.position.x) < .7 &&
           Math.abs(item.mesh.position.y - (this.groundY + this.jump + .9)) < 1.0) {
-        this.stats.coins++;
-        writeBalance(readBalance() + 1);
+        const BONUS_VALUE = 10;
+        this.stats.coins += BONUS_VALUE;
+        writeBalance(readBalance() + BONUS_VALUE);
         this.__balanceRunCoins = this.stats.coins;
         this.burst(item.mesh.position);
         this.tone(1100 + (this.stats.coins % 5) * 150, .13, 1700);
