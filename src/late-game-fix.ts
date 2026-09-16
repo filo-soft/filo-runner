@@ -10,6 +10,7 @@ const originalSupportAt = proto.supportAt;
 const originalControl = proto.control;
 
 const BONUS_START_TIME = 180;
+const BONUS_CHANCE = .02;
 
 const ensureExtraRamp = function () {
   if (this.prototypes.has('stairRamp')) return;
@@ -63,6 +64,13 @@ const sanitizeCoins = function () {
   }
 };
 
+const activeBonus = function (game: any) {
+  const state = game.__bonusRamp;
+  if (!state) return false;
+  const now = game.stats.time as number;
+  return state.magnetUntil > now || state.shieldUntil > now;
+};
+
 const replaceBlueCoin = function (coin: any, powerup: boolean) {
   const lane = coin.lane as number;
   const z = coin.mesh.position.z as number;
@@ -71,8 +79,6 @@ const replaceBlueCoin = function (coin: any, powerup: boolean) {
   const index = this.items.indexOf(coin);
   if (index >= 0) this.items.splice(index, 1);
 
-  // Keep the old orange +10 coin in the rare slot before 3 minutes.
-  // After 3 real minutes the same 5% slot becomes a magnet or shield.
   const bonus = this.addItem('bonusCoin', lane, z);
   bonus.mesh.position.y = y;
   bonus.laneX = lane * 2.2;
@@ -109,9 +115,9 @@ proto.spawn = function () {
   const beforeItems = new Set((this.items as any[]));
   originalSpawn.call(this);
 
-  // The rare 5% slot exists from the start of the run.
-  // Before 180s it is the orange +10 coin; from 180s it is a powerup.
-  if (Math.random() < .05) {
+  // The rare slot is now 2%. Before 180s it stays the old orange +10 coin.
+  // Never create a new bonus while magnet/shield is already active.
+  if (Math.random() < BONUS_CHANCE && !activeBonus(this)) {
     const newCoins = (this.items as any[]).filter((item: any) =>
       !beforeItems.has(item) && item.type === 'coin'
     );
@@ -132,7 +138,8 @@ proto.spawn = function () {
     this.addItem('pillar', lanes[2], -92);
   }
 
-  if (distance >= 8000 && time >= BONUS_START_TIME && completedRow >= 1 && completedRow % 19 === 0) {
+  // Late-game stair bonus is also suppressed while another powerup is active.
+  if (distance >= 8000 && time >= BONUS_START_TIME && completedRow >= 1 && completedRow % 19 === 0 && !activeBonus(this)) {
     const lane = (((completedRow + 1) % 3) - 1) as number;
     this.addItem('stairRamp', lane, -103);
     const coin = this.addItem('bonusCoin', lane, -104.25);
