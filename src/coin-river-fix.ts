@@ -18,7 +18,6 @@ proto.buildPrototypes = function () {
   water.receiveShadow = true;
   river.add(water);
 
-  // Uneven dark banks make it read as a narrow rocky fissure rather than a flat platform.
   const bankMat = new T.MeshStandardMaterial({ color: '#756b58', roughness: 1 });
   for (const x of [-3.18, 3.18]) {
     const bank = new T.Mesh(new T.BoxGeometry(.38, .16, 3.55), bankMat);
@@ -29,7 +28,6 @@ proto.buildPrototypes = function () {
     river.add(bank);
   }
 
-  // A few pale streaks give the water a visible flow direction.
   const flowMat = new T.MeshBasicMaterial({ color: '#83b0ae', transparent: true, opacity: .48 });
   for (let i = 0; i < 5; i++) {
     const streak = new T.Mesh(new T.BoxGeometry(1.0 + (i % 2) * .55, .012, .045), flowMat);
@@ -44,7 +42,6 @@ proto.buildPrototypes = function () {
 
 const originalAddItem = proto.addItem;
 proto.addItem = function (type: string, lane: number, z: number) {
-  // Orange coins use the normal coin item mechanics, but get a dedicated visual and height.
   if (type === 'coin-orange') {
     const item = originalAddItem.call(this, 'coin', lane, z);
     item.mesh.userData.orangeCoin = true;
@@ -73,6 +70,12 @@ proto.spawn = function () {
   const rowBefore = this.row as number;
   originalSpawn.call(this);
 
+  // On block rows, put an orange coin directly above the obstacle in the same lane.
+  if (rowBefore % 3 === 0 && rowBefore % 4 !== 3) {
+    const block = [...(this.items || [])].find((item: any) => item.type === 'block' && Math.abs(item.mesh.position.z + 80) < 1.5);
+    if (block) this.addItem('coin-orange', block.lane, -80);
+  }
+
   // Every sixth regular pattern becomes a river crossing. Avoid the existing wall rows.
   if (rowBefore % 6 !== 2 || rowBefore % 4 === 3) return;
 
@@ -92,7 +95,7 @@ proto.spawn = function () {
   river.mesh.position.x = this.bendOff(riverZ);
   river.mesh.position.y = .1;
 
-  // A visible orange reward directly above the crossing tells the player to jump.
+  // Orange coin directly above the crossing: jump over the river and collect the reward.
   this.addItem('coin-orange', 0, riverZ).mesh.position.y = 2.05;
 };
 
