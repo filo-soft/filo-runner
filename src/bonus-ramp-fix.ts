@@ -1,12 +1,12 @@
 import * as T from 'three';
 import { RunnerGame } from './game';
 
-const proto = RunnerGame.prototype as any;
 type Bonus = { mesh: T.Group; type: 'magnet' | 'shield'; z: number; lane: number; collected: boolean };
 type Ramp = { mesh: T.Group; z: number; bonusZ?: number };
 const BONUSES: Bonus[] = [];
 const RAMPS: Ramp[] = [];
-const ORIGINALS = { start: proto.start, step: proto.step, die: proto.die, spawn: proto.spawn };
+const ORIGINALS = { start: (RunnerGame.prototype as any).start, step: (RunnerGame.prototype as any).step, die: (RunnerGame.prototype as any).die, spawn: (RunnerGame.prototype as any).spawn };
+const proto = RunnerGame.prototype as any;
 
 const RAMP_INTERVAL_MIN = 620;
 const RAMP_INTERVAL_MAX = 820;
@@ -40,13 +40,11 @@ function makeRamp() {
   const marble = new T.MeshStandardMaterial({ color: '#e9dfcc', roughness: .82 });
   const trim = new T.MeshStandardMaterial({ color: '#f7eddc', roughness: .72 });
   const accent = new T.MeshStandardMaterial({ color: '#5148b7', roughness: .4, metalness: .15 });
-  // One-lane ramp: stairs lead onto a long single-lane deck, matching the original mechanic.
   for (let i = 0; i < 5; i++) {
     const step = new T.Mesh(new T.BoxGeometry(RAMP_WIDTH, .4 * (i + 1), 1.18), marble);
     step.position.set(0, .2 * (i + 1), .6 + i * 1.18); step.castShadow = step.receiveShadow = true; root.add(step);
   }
   const deck = new T.Mesh(new T.BoxGeometry(RAMP_WIDTH, .34, 23.0), marble); deck.position.set(0, 2.08, 18.5); deck.castShadow = deck.receiveShadow = true; root.add(deck);
-  // Very low edge trims only; they do not widen the playable lane.
   for (const x of [-(RAMP_WIDTH / 2 - .06), RAMP_WIDTH / 2 - .06]) {
     const rail = new T.Mesh(new T.BoxGeometry(.06, .12, 22.2), trim); rail.position.set(x, 2.31, 18.5); rail.castShadow = true; root.add(rail);
   }
@@ -75,7 +73,6 @@ function spawnRamp(game: any) {
   if (RAMPS.some(r => r.z < 20 && r.z > -130)) return;
   const mesh = makeRamp(); mesh.position.set(game.bendOff(RAMP_Z), 0, RAMP_Z); game.scene.add(mesh);
   const ramp: Ramp = { mesh, z: RAMP_Z }; RAMPS.push(ramp);
-  // Clear every non-coin obstacle in the full approach, deck and landing zone.
   for (let i = game.items.length - 1; i >= 0; i--) {
     const item = game.items[i];
     if (item.type !== 'coin' && item.type !== 'gate' && item.mesh.position.z > RAMP_Z - 6 && item.mesh.position.z < RAMP_Z + RAMP_SAFE_END) {
@@ -83,7 +80,6 @@ function spawnRamp(game: any) {
     }
   }
   const state = ensureState(game); state.rampCounter++;
-  // Bonuses are sparse and occupy the center of the one-lane deck, separate from coin rows.
   if (state.rampCounter % 2 === 0) {
     const type = state.rampCounter % 4 === 0 ? 'shield' : 'magnet';
     const bonusZ = RAMP_Z + 16.5;
@@ -103,7 +99,6 @@ proto.start = function () {
   updateBonusHud(this, this.__bonusRamp);
 };
 
-// While a ramp and its landing corridor are active, normal obstacles are not spawned.
 proto.spawn = function () {
   if (RAMPS.some(r => r.z < RAMP_SAFE_END && r.z > -120)) return;
   ORIGINALS.spawn.call(this);
@@ -134,7 +129,6 @@ proto.step = function (dt: number) {
     if (ramp.z > 20) { this.scene.remove(ramp.mesh); RAMPS.splice(i, 1); }
   }
 
-  // Follow the stair/deck height. Once past the open end, return to normal ground immediately.
   let rampY = 0; let onRamp = false;
   for (const ramp of RAMPS) {
     const rel = 1.2 - ramp.z;
@@ -147,7 +141,6 @@ proto.step = function (dt: number) {
   for (let i = BONUSES.length - 1; i >= 0; i--) {
     const bonus = BONUSES[i]; bonus.z += moved; bonus.mesh.position.z = bonus.z; bonus.mesh.position.x = this.bendOff(bonus.z);
     bonus.mesh.rotation.y += dt * 2.4; bonus.mesh.rotation.z = Math.sin(this.phase * .7) * .08;
-    // Fixed to the deck surface, with enough clearance that it cannot clip into the ramp texture.
     bonus.mesh.position.y = 3.05 + Math.sin(this.phase * .9 + i) * .08;
     if (!bonus.collected && Math.abs(bonus.z - 1.2) < 1.0 && Math.abs(bonus.mesh.position.x - this.runner.position.x) < 1.0 && Math.abs(bonus.mesh.position.y - (this.groundY + this.jump + 1)) < 1.35) {
       bonus.collected = true;
@@ -158,8 +151,22 @@ proto.step = function (dt: number) {
     if (bonus.z > 18 || bonus.collected) BONUSES.splice(i, 1);
   }
 
+  // The orange bonus coin is the 5% trigger slot used outside ramps.
+  for (let i = this.items.length - 1; i >= 0; i--) {
+    const item = this.items[i];
+    if (item.type !== 'bonusCoin') continue;
+    if (Math.abs(item.mesh.position.z - 1.2) < .75 && Math.abs(item.mesh.position.x - this.runner.position.x) < .85 && Math.abs(item.mesh.position.y - (this.groundY + this.jump + .9)) < 1.15) {
+      const type: 'magnet' | 'shield' = Math.random() < .5 ? 'magnet' : 'shield';
+      if (type === 'magnet') state.magnetUntil = now + BONUS_DURATION;
+      else state.shieldUntil = now + BONUS_DURATION;
+      this.onToast(type === 'magnet' ? 'Магнит активирован · 15 секунд' : 'Щит активирован · 15 секунд');
+      this.tone(type === 'magnet' ? 520 : 360, .15, type === 'magnet' ? 980 : 760);
+      this.burst(item.mesh.position, false, 14);
+      this.recycle(item); this.items.splice(i, 1);
+    }
+  }
+
   if (state.magnetUntil > now) {
-    // Coins are pulled from the spawned path; the bonus itself is never part of game.items.
     for (let i = this.items.length - 1; i >= 0; i--) {
       const item = this.items[i]; if (item.type !== 'coin') continue;
       const dz = item.mesh.position.z - 1.2; if (dz < -120 || dz > 3) continue;
