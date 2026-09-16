@@ -18,6 +18,7 @@ import "./branding-fix";
 import "./hit-protection";
 import "./boulder-fix";
 import "./version-fix";
+import "./ui-readability-fix";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(
