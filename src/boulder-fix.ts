@@ -100,6 +100,15 @@ function advanceBoulder(game: any, dt: number) {
   const lane = game.__boulderLane as number; const prevZ = game.__boulderZ as number; const z = prevZ + BOULDER_SPEED * dt; game.__boulderZ = z;
   boulder.position.x = lane * 2.2 + game.bendOff(z); boulder.position.y = game.groundY + BOULDER_RADIUS - .05; boulder.position.z = z;
   const roll = BOULDER_SPEED * dt / BOULDER_RADIUS; boulder.rotation.x -= roll; boulder.rotation.z += roll * .035;
+
+  // A boulder is a hard game-over hazard: unlike normal obstacles, jumping/sliding does not save the run.
+  // The normal RunnerGame.die() path is used so the existing 2000-coin second-life revive can rescue it.
+  const runner = game.runner as T.Group | undefined;
+  if (runner && prevZ < 1.2 && z >= 1.2 && Math.abs(boulder.position.x - runner.position.x) < 1.35) {
+    game.die();
+    return;
+  }
+
   const items = (game.items || []) as any[];
   for (const item of [...items]) { if (!item || item.lane !== lane) continue; const type = item.type; if (!BREAKABLE.has(type) && !COLLECTIBLES.has(type)) continue; const itemZ = Number(item.mesh?.position?.z); if (!Number.isFinite(itemZ)) continue; if (itemZ >= prevZ - 1.2 && itemZ <= z + BOULDER_HIT_REACH) destroyAt(game, lane, itemZ); }
   game.__boulderDustAt -= dt; if (game.__boulderDustAt <= 0) { game.__boulderDustAt = .045; game.burst(new T.Vector3(boulder.position.x, game.groundY + .08, z - BOULDER_RADIUS * .8), true, 3); }
