@@ -3,36 +3,49 @@ import { RunnerGame } from './game';
 
 const proto = RunnerGame.prototype as any;
 
-// Add the new all-lanes river/chasm prototype without touching the core runner.
 const originalBuildPrototypes = proto.buildPrototypes;
 proto.buildPrototypes = function () {
   originalBuildPrototypes.call(this);
   if (this.prototypes.has('river')) return;
 
   const river = new T.Group();
-  const water = new T.Mesh(
-    new T.BoxGeometry(6.65, .055, 3.35),
-    new T.MeshStandardMaterial({ color: '#315f68', roughness: .28, metalness: .08 })
-  );
-  water.position.y = .055;
-  water.receiveShadow = true;
-  river.add(water);
+  const dark = new T.MeshStandardMaterial({ color: '#20282a', roughness: .92 });
+  const water = new T.MeshStandardMaterial({ color: '#28545b', roughness: .2, metalness: .08 });
+  const edge = new T.MeshStandardMaterial({ color: '#8a806a', roughness: 1 });
 
-  const bankMat = new T.MeshStandardMaterial({ color: '#756b58', roughness: 1 });
-  for (const x of [-3.18, 3.18]) {
-    const bank = new T.Mesh(new T.BoxGeometry(.38, .16, 3.55), bankMat);
-    bank.position.set(x, .11, 0);
-    bank.rotation.z = x < 0 ? -.055 : .055;
-    bank.castShadow = true;
-    bank.receiveShadow = true;
-    river.add(bank);
+  // Actual chasm: the road surface is interrupted and the center drops well below it.
+  const depth = new T.Mesh(new T.BoxGeometry(6.7, 2.5, 3.6), dark);
+  depth.position.y = -1.15;
+  depth.receiveShadow = true;
+  river.add(depth);
+
+  const riverWater = new T.Mesh(new T.BoxGeometry(5.95, .06, 3.05), water);
+  riverWater.position.y = -1.72;
+  river.add(riverWater);
+
+  // Broken stone lips make the opening immediately readable from the approach.
+  for (const x of [-3.28, 3.28]) {
+    const lip = new T.Mesh(new T.BoxGeometry(.34, .18, 3.72), edge);
+    lip.position.set(x, .02, 0);
+    lip.rotation.z = x < 0 ? -.08 : .08;
+    lip.castShadow = true;
+    lip.receiveShadow = true;
+    river.add(lip);
   }
 
-  const flowMat = new T.MeshBasicMaterial({ color: '#83b0ae', transparent: true, opacity: .48 });
-  for (let i = 0; i < 5; i++) {
-    const streak = new T.Mesh(new T.BoxGeometry(1.0 + (i % 2) * .55, .012, .045), flowMat);
-    streak.position.set(-2.35 + i * 1.12, .091, (i % 2 ? .48 : -.42));
-    streak.rotation.y = -.12;
+  // Visible descending inner walls expose the depth instead of looking like a mat.
+  for (const x of [-1, 1]) {
+    const slope = new T.Mesh(new T.BoxGeometry(2.75, .9, 3.08), edge);
+    slope.position.set(x * 1.9, -.58, 0);
+    slope.rotation.z = x < 0 ? -.28 : .28;
+    slope.receiveShadow = true;
+    river.add(slope);
+  }
+
+  const flowMat = new T.MeshBasicMaterial({ color: '#78a9a5', transparent: true, opacity: .5 });
+  for (let i = 0; i < 4; i++) {
+    const streak = new T.Mesh(new T.BoxGeometry(.9 + (i % 2) * .5, .014, .035), flowMat);
+    streak.position.set(-1.9 + i * 1.25, -1.67, i % 2 ? .42 : -.42);
     river.add(streak);
   }
 
@@ -59,7 +72,6 @@ proto.addItem = function (type: string, lane: number, z: number) {
     });
     return item;
   }
-
   const item = originalAddItem.call(this, type, lane, z);
   item.mesh.userData.orangeCoin = false;
   return item;
@@ -70,13 +82,11 @@ proto.spawn = function () {
   const rowBefore = this.row as number;
   originalSpawn.call(this);
 
-  // On block rows, put an orange coin directly above the obstacle in the same lane.
   if (rowBefore % 3 === 0 && rowBefore % 4 !== 3) {
     const block = [...(this.items || [])].find((item: any) => item.type === 'block' && Math.abs(item.mesh.position.z + 80) < 1.5);
     if (block) this.addItem('coin-orange', block.lane, -80);
   }
 
-  // Every sixth regular pattern becomes a river crossing. Avoid the existing wall rows.
   if (rowBefore % 6 !== 2 || rowBefore % 4 === 3) return;
 
   const riverZ = -80;
@@ -94,28 +104,25 @@ proto.spawn = function () {
   river.laneX = 0;
   river.mesh.position.x = this.bendOff(riverZ);
   river.mesh.position.y = .1;
-
-  // Orange coin directly above the crossing: jump over the river and collect the reward.
   this.addItem('coin-orange', 0, riverZ).mesh.position.y = 2.05;
 };
 
 const originalStep = proto.step;
 proto.step = function (dt: number) {
-  const checkedBefore = new Set<any>();
+  const riverBefore = new Set<any>();
   for (const item of ((this.items || []) as any[])) {
-    if (item?.checked) checkedBefore.add(item);
+    if (item?.checked) riverBefore.add(item);
   }
 
   originalStep.call(this, dt);
 
   if (this.mode !== 'playing') return;
   for (const item of ((this.items || []) as any[])) {
-    if (item.type !== 'river' || !item.checked || checkedBefore.has(item)) continue;
-    // River occupies the full width, so lane choice cannot avoid it: only a jump works.
+    if (item.type !== 'river' || !item.checked || riverBefore.has(item)) continue;
+    // The chasm spans all three lanes. It is safe only while airborne.
     if (this.jump < .55) {
       this.die();
       return;
     }
-    this.burst(new T.Vector3(this.runner.position.x, this.groundY + .15, 1.2), true, 8);
   }
 };
