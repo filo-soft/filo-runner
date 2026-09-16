@@ -40,12 +40,12 @@ const makeTunnel = (game: any, variant: number): T.Group => {
     return mesh;
   };
 
-  // A real roofed temple corridor, wide enough for the three running lanes.
+  // One continuous roofed temple corridor. Normal temple gates/roofs are suppressed while inside it.
   box(0, TUNNEL_ROOF_Y, 0, 7.2, .48, TUNNEL_LENGTH, trim);
   box(-3.45, 2.35, 0, .28, 4.7, TUNNEL_LENGTH, stone);
   box(3.45, 2.35, 0, .28, 4.7, TUNNEL_LENGTH, stone);
 
-  // Same classical columns as the roadside columns, alternating left/right down the center.
+  // Decorative central columns: they are architecture, not game obstacles.
   for (let i = 0; i < 6; i++) {
     const column = game.makeColumn(3.65) as T.Object3D;
     column.position.set(i % 2 === 0 ? -1.12 : 1.12, 0, -12.5 + i * 5);
@@ -53,9 +53,8 @@ const makeTunnel = (game: any, variant: number): T.Group => {
   }
 
   // Low side ramps let the runner climb to a raised edge lane instead of jumping.
-  const rampMat = marble;
   for (const side of [-1, 1]) {
-    const ramp = new T.Mesh(new T.BoxGeometry(1.75, .22, 7.2), rampMat);
+    const ramp = new T.Mesh(new T.BoxGeometry(1.75, .22, 7.2), marble);
     ramp.position.set(side * 2.55, RAMP_HEIGHT * .5, 0);
     ramp.rotation.x = side * .13;
     ramp.castShadow = true;
@@ -66,7 +65,7 @@ const makeTunnel = (game: any, variant: number): T.Group => {
     rail.rotation.x = side * .13;
   }
 
-  // Temple entrance/exit lintels make the tunnel read as a distinct architectural section.
+  // Entrance/exit framing only; no additional gate object is spawned here.
   box(0, 4.05, -17.0, 6.9, .35, .55, trim);
   box(0, 4.05, 17.0, 6.9, .35, .55, trim);
   for (const x of [-3.0, 3.0]) {
@@ -98,6 +97,26 @@ const spawnTunnel = (game: TempleGame) => {
   game.__templeTunnels!.push({ root, z, length: TUNNEL_LENGTH });
 };
 
+const isInsideTunnel = (game: TempleGame, z: number) => {
+  for (const tunnel of game.__templeTunnels || []) {
+    const localZ = z - tunnel.root.position.z;
+    if (localZ >= -17 && localZ <= 17) return true;
+  }
+  return false;
+};
+
+const clearTunnelObstacles = (game: TempleGame) => {
+  const items = game.items as any[];
+  if (!items) return;
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    if (!item || item.type === 'coin') continue;
+    if (!isInsideTunnel(game, Number(item.mesh?.position?.z))) continue;
+    game.recycle(item);
+    items.splice(i, 1);
+  }
+};
+
 const updateTunnelGround = (game: TempleGame) => {
   game.__templeRampY = 0;
   const x = Number(game.runner?.position?.x || 0);
@@ -107,7 +126,6 @@ const updateTunnelGround = (game: TempleGame) => {
     if (localZ < -17 || localZ > 17) continue;
     const onRamp = Math.abs(x) > 1.35;
     if (onRamp) {
-      // Smoothly rise/fall at the tunnel ends so the runner actually travels up the side ramps.
       const edge = Math.max(0, 1 - Math.abs(localZ) / 17);
       game.__templeRampY = Math.max(game.__templeRampY, RAMP_HEIGHT * edge);
     }
@@ -153,7 +171,11 @@ proto.step = function (dt: number) {
     }
   }
 
+  // Clear traversal: no normal obstacles or gate roofs inside the temple tunnel.
+  clearTunnelObstacles(game);
+
   const result = previousStep.call(this, dt);
+  clearTunnelObstacles(game);
   updateTunnelGround(game);
   return result;
 };
