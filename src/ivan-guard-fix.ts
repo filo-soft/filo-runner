@@ -18,17 +18,17 @@ const previousStart = proto.start;
 const previousMenu = proto.menu;
 
 const PLAYER_Z = 1.2;
-const IVAN_START_GAP = 5.8;
-const IVAN_MAX_GAP = 18;
-const IVAN_RETREAT_SPEED = 1.15;
+const IVAN_START_GAP = 9.0;
+const IVAN_MAX_GAP = 24;
+const IVAN_RETREAT_SPEED = .85;
 const IVAN_CHASE_SPEED = 8.2;
 const IVAN_CATCH_GAP = .72;
-const IVAN_INTRO_SECONDS = 3.5;
+const IVAN_INTRO_SECONDS = 5.6;
+const IVAN_CHASE_START_GAP = 12.5;
 const IVAN_FOV_NORMAL = 47;
 const IVAN_FOV_IVAN = 60;
 const IVAN_CAMERA_RESPONSE = 5;
 const IVAN_LANE_RESPONSE = 9;
-const IVAN_X_OFFSET = 0;
 
 const cloneBlueGuard = (game: IvanGame) => {
   if (game.__ivanGuardRoot) return;
@@ -73,28 +73,29 @@ const cloneBlueGuard = (game: IvanGame) => {
     mesh.receiveShadow = true;
   }
 
-  // Camera is on the +Z side. With the player's PI Y rotation, the visible back face is local -Z.
-  // Put the label there so it is physically on Ivan's back and readable from the camera.
+  // Camera is on the +Z side. Keep the label flat on Ivan's local -Z back face.
   const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 144;
+  canvas.width = 1024;
+  canvas.height = 256;
   const ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = '900 94px Arial, Helvetica, sans-serif';
+    ctx.font = '900 170px Arial, Helvetica, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = blue.color.getStyle();
-    ctx.fillText('IVAN', 256, 72);
+    ctx.fillText('IVAN', 512, 128);
     const texture = new T.CanvasTexture(canvas);
     texture.colorSpace = T.SRGBColorSpace;
-    texture.anisotropy = 4;
+    texture.anisotropy = 8;
+    texture.needsUpdate = true;
     const label = new T.Mesh(
-      new T.PlaneGeometry(.86, .242),
+      new T.PlaneGeometry(.9, .225),
       new T.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: T.DoubleSide }),
     );
     label.name = 'IVANBackLabel';
     label.position.set(0, 1.72, -.285);
+    label.rotation.set(0, 0, 0);
     root.add(label);
   }
 
@@ -235,7 +236,7 @@ proto.step = function (dt: number) {
       const state = game.__ivanGuardState || 'hidden';
       if (state === 'retreat' && (game.__ivanIntroRemaining ?? 0) <= 0) {
         setIvanState(game, 'chase');
-        game.__ivanGuardGap = Math.max(IVAN_CATCH_GAP, game.__ivanGuardGap ?? IVAN_START_GAP);
+        game.__ivanGuardGap = Math.max(IVAN_CHASE_START_GAP, (game.__ivanGuardGap ?? IVAN_START_GAP) * 1.6);
         if (game.onToast) game.onToast('Иван догоняет');
       } else if (state === 'hidden') {
         showHitIvan(game);
