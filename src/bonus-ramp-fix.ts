@@ -14,7 +14,8 @@ const BALANCE_KEY = 'filo-balance';
 type BonusType = 'magnet' | 'shield';
 
 function ensureState(game: any) {
-  game.__bonusRamp = game.__bonusRamp || { magnetUntil: 0, shieldUntil: 0 };
+  game.__bonusRamp = game.__bonusRamp || { magnetUntil: 0, shieldUntil: 0, nextPowerupType: 'magnet' };
+  if (!game.__bonusRamp.nextPowerupType) game.__bonusRamp.nextPowerupType = 'magnet';
   return game.__bonusRamp;
 }
 
@@ -32,6 +33,7 @@ function restoreOrangeVisual(game: any, item: any) {
   while (root.children.length) root.remove(root.children[0]);
   for (const child of template.children) root.add(child.clone(true));
   root.userData.bonusVisual = false;
+  delete root.userData.bonusVisualType;
   delete root.userData.bonusType;
 }
 
@@ -63,6 +65,7 @@ function makeBonusVisual(item: any, type: BonusType) {
   root.add(aura);
   root.userData.bonusType = type;
   root.userData.bonusVisual = true;
+  root.userData.bonusVisualType = type;
 }
 
 function removeItem(game: any, item: any) {
@@ -70,6 +73,13 @@ function removeItem(game: any, item: any) {
   if (index >= 0) {
     game.recycle(item);
     game.items.splice(index, 1);
+  }
+}
+
+function removeQueuedPowerups(game: any) {
+  for (let i = game.items.length - 1; i >= 0; i--) {
+    const item = game.items[i];
+    if (item.type === 'bonusCoin' && item.mesh.userData.bonusType) removeItem(game, item);
   }
 }
 
@@ -115,6 +125,9 @@ function activateBonus(game: any, item: any) {
   game.tone(type === 'magnet' ? 520 : 360, .15, type === 'magnet' ? 980 : 760);
   game.burst(item.mesh.position, false, 14);
   removeItem(game, item);
+  // A collected powerup is the only one that may become active. Clear any queued
+  // powerups so the player cannot run through stale magnets/shields and collect them later.
+  removeQueuedPowerups(game);
 }
 
 function prepareBonusItems(game: any) {
@@ -139,22 +152,28 @@ function prepareBonusItems(game: any) {
     }
 
     item.checked = true;
-    if (!item.mesh.userData.bonusVisual) makeBonusVisual(item, type);
+    if (!item.mesh.userData.bonusVisual || item.mesh.userData.bonusVisualType !== type) makeBonusVisual(item, type);
     keepBonusAboveRamp(game, item);
   }
 }
 
 function collectBonusesBeforeCollision(game: any) {
   if ((game.stats.time as number) < BONUS_START_TIME) return;
+  const state = ensureState(game);
   for (let i = game.items.length - 1; i >= 0; i--) {
     const item = game.items[i];
     if (item.type !== 'bonusCoin' || !item.mesh.userData.bonusType) continue;
     if (
-      Math.abs(item.mesh.position.z - 1.2) < .9 &&
-      Math.abs(item.mesh.position.x - game.runner.position.x) < .9 &&
-      Math.abs(item.mesh.position.y - (game.groundY + game.jump + .9)) < 1.2
+      Math.abs(item.mesh.position.z - 1.2) < 1.15 &&
+      Math.abs(item.mesh.position.x - game.runner.position.x) < 1.15 &&
+      Math.abs(item.mesh.position.y - (game.groundY + game.jump + .9)) < 1.45
     ) {
+      if (activeBonus(state, game.stats.time as number)) {
+        removeItem(game, item);
+        continue;
+      }
       activateBonus(game, item);
+      break;
     }
   }
 }
@@ -189,7 +208,7 @@ function updateBonusHud(game: any, state: any) {
 
 proto.start = function () {
   ORIGINALS.start.call(this);
-  this.__bonusRamp = { magnetUntil: 0, shieldUntil: 0 };
+  this.__bonusRamp = { magnetUntil: 0, shieldUntil: 0, nextPowerupType: 'magnet' };
   const originalToast = this.onToast;
   if (!(this as any).__coinToastFiltered) {
     this.onToast = (text: string) => {
@@ -215,7 +234,6 @@ proto.die = function () {
 
 proto.step = function (dt: number) {
   const state = ensureState(this);
-  const nowBefore = this.stats.time as number;
 
   prepareBonusItems(this);
   collectBonusesBeforeCollision(this);
@@ -249,7 +267,7 @@ proto.step = function (dt: number) {
   }
 
   // Keep the pull persistent through the base game's per-frame lane-position update.
-  if (state.magnetUntil > now && nowBefore <= now) {
+  if (state.magnetUntil > now) {
     for (const item of this.items as any[]) {
       if (item.type !== 'coin') continue;
       const dz = item.mesh.position.z - 1.2;
