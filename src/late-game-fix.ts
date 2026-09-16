@@ -101,8 +101,6 @@ proto.spawn = function () {
   originalSpawn.call(this);
 
   // Bonus coins start only after 3 real minutes of play, not by distance.
-  // Distance is intentionally not used here because speed/physics can make
-  // the old 360m threshold occur before 180 seconds.
   if (time >= 180 && Math.random() < .05) {
     const newCoins = (this.items as any[]).filter((item: any) =>
       !beforeItems.has(item) && item.type === 'coin'
@@ -124,8 +122,8 @@ proto.spawn = function () {
     this.addItem('pillar', lanes[2], -92);
   }
 
-  // Original walkable staircase ramp remains unchanged.
-  if (distance >= 8000 && completedRow >= 1 && completedRow % 19 === 0) {
+  // Staircase ramp remains unchanged; its bonus pickup also cannot appear before 3 minutes.
+  if (distance >= 8000 && time >= 180 && completedRow >= 1 && completedRow % 19 === 0) {
     const lane = (((completedRow + 1) % 3) - 1) as number;
     this.addItem('stairRamp', lane, -103);
     const coin = this.addItem('bonusCoin', lane, -104.25);
