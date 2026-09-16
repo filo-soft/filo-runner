@@ -46,12 +46,7 @@ const cloneBlueGuard = (game: IvanGame) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.font = '900 340px Arial, Helvetica, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = blue.color.getStyle(); ctx.fillText('IVAN', 1024, 256);
     const texture = new T.CanvasTexture(canvas); texture.colorSpace = T.SRGBColorSpace; texture.anisotropy = 8; texture.needsUpdate = true;
     const label = new T.Mesh(new T.PlaneGeometry(.9, .225), new T.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: T.DoubleSide }));
-    label.name = 'IVANBackLabel';
-    // Ivan is between the camera and the player at the start, so the label must sit on his +Z/back side.
-    label.position.set(0, 1.72, .285);
-    label.rotation.set(0, 0, 0);
-    label.renderOrder = 20;
-    root.add(label);
+    label.name = 'IVANBackLabel'; label.position.set(0, 1.72, -.285); label.rotation.set(0, Math.PI, 0); root.add(label);
   }
   (game as any).scene.add(root); game.__ivanGuardRoot = root;
 };
