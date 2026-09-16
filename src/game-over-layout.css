@@ -1,4 +1,4 @@
-.over-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:24px;align-items:stretch}
+.over-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;align-items:stretch}
 .over-actions .over-restart{grid-column:1/-1;width:100%;margin-top:0}
 .over-actions .over-scores,.over-actions .over-home{grid-column:auto;min-height:43px;margin-top:0;padding:10px 13px;border-radius:7px;font-size:10px;width:100%}
 .over-actions .over-scores{border:1px solid #d9d2c5;background:#f1ece2;color:#746a59}
