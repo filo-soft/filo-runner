@@ -13,8 +13,11 @@ const mountFooter = () => {
 const style = document.createElement('style');
 style.textContent = `
   .filosoft-footer {
-    display:block;
-    margin-top:18px;
+    position:fixed;
+    left:50%;
+    bottom:10px;
+    z-index:1000;
+    transform:translateX(-50%);
     color:#9b9587;
     font:500 8px/1 Arial,Helvetica,sans-serif;
     letter-spacing:1.8px;
