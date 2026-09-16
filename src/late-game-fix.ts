@@ -99,13 +99,14 @@ proto.spawn = function () {
   const distance = this.stats.distance as number;
   const time = this.stats.time as number;
   const completedRow = (this.row as number) - 1;
+  const beforeItems = new Set(this.items as any[]);
   originalSpawn.call(this);
 
-  // A bonus is allowed only after 180 seconds of actual running time.
-  // It replaces one of the newly spawned ordinary blue coins; it never adds an extra pickup.
+  // Hard gate: no bonus item may be created before 180 seconds of actual play.
+  // The 5% roll replaces exactly one coin created by this spawn call.
   if (time >= 180 && Math.random() < .05) {
     const newCoins = (this.items as any[]).filter((item: any) =>
-      item.type === 'coin' && item.mesh.position.z <= -70
+      !beforeItems.has(item) && item.type === 'coin'
     );
     const target = newCoins[newCoins.length - 1];
     if (target) replaceBlueCoin.call(this, target);
@@ -124,7 +125,6 @@ proto.spawn = function () {
     this.addItem('pillar', lanes[2], -92);
   }
 
-  // The rare staircase bonus follows the same hard 3-minute gate.
   if (distance >= 8000 && time >= 180 && completedRow >= 1 && completedRow % 19 === 0) {
     const lane = (((completedRow + 1) % 3) - 1) as number;
     this.addItem('stairRamp', lane, -103);
