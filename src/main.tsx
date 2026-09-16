@@ -17,6 +17,7 @@ import "./cityscape-sparse-fix";
 import "./branding-fix";
 import "./hit-protection";
 import "./boulder-fix";
+import "./version-fix";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(
