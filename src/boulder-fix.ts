@@ -105,20 +105,21 @@ function shatterObstacle(game: any, item: any, impact: T.Vector3, lane: number) 
   const box = new T.Box3().setFromObject(item.mesh);
   const size = box.getSize(new T.Vector3());
   const center = box.getCenter(new T.Vector3());
-  const mat = getMaterial(item).clone();
   const debris: Debris[] = game.__boulderDebris || (game.__boulderDebris = []);
-  const count = type === 'pillar' ? 11 : type === 'arch' ? 13 : 10;
+  const count = type === 'pillar' ? 12 : type === 'arch' ? 15 : 11;
 
   for (let i = 0; i < count; i++) {
-    const scale = .24 + Math.random() * .28;
-    const sx = Math.max(.16, size.x * scale * (.7 + Math.random() * .65));
-    const sy = Math.max(.14, size.y * scale * (.55 + Math.random() * .8));
-    const sz = Math.max(.16, size.z * scale * (.7 + Math.random() * .65));
-    const mesh = new T.Mesh(new T.BoxGeometry(sx, sy, sz), mat);
+    const scale = .22 + Math.random() * .3;
+    const sx = Math.max(.16, size.x * scale * (.65 + Math.random() * .7));
+    const sy = Math.max(.14, size.y * scale * (.55 + Math.random() * .9));
+    const sz = Math.max(.16, size.z * scale * (.65 + Math.random() * .7));
+    // Every fragment gets its own material clone so the debris can be disposed
+    // safely after flying apart without invalidating the remaining fragments.
+    const mesh = new T.Mesh(new T.BoxGeometry(sx, sy, sz), getMaterial(item).clone());
     mesh.position.set(
-      center.x + (Math.random() - .5) * size.x * .75,
-      Math.max(.12, center.y + (Math.random() - .5) * size.y * .65),
-      center.z + (Math.random() - .5) * size.z * .75,
+      center.x + (Math.random() - .5) * size.x * .8,
+      Math.max(.12, center.y + (Math.random() - .5) * size.y * .7),
+      center.z + (Math.random() - .5) * size.z * .8,
     );
     mesh.rotation.set(Math.random() * 2, Math.random() * 2, Math.random() * 2);
     mesh.castShadow = true;
@@ -130,21 +131,21 @@ function shatterObstacle(game: any, item: any, impact: T.Vector3, lane: number) 
     debris.push({
       mesh,
       velocity: new T.Vector3(
-        awayX * 1.4 + (Math.random() - .5) * 4,
-        3.2 + Math.random() * 5.2,
-        awayZ * .9 + (Math.random() - .5) * 3 + 2.5,
+        awayX * 1.7 + (Math.random() - .5) * 5,
+        3.8 + Math.random() * 5.8,
+        awayZ * .9 + (Math.random() - .5) * 3.5 + 3.5,
       ),
       spin: new T.Vector3(
-        (Math.random() - .5) * 9,
-        (Math.random() - .5) * 9,
-        (Math.random() - .5) * 9,
+        (Math.random() - .5) * 11,
+        (Math.random() - .5) * 11,
+        (Math.random() - .5) * 11,
       ),
-      life: .75 + Math.random() * .55,
+      life: .8 + Math.random() * .6,
     });
     game.scene.add(mesh);
   }
 
-  game.burst(impact, true, 12);
+  game.burst(impact, true, 14);
 }
 
 function destroyAt(game: any, lane: number, z: number) {
@@ -170,7 +171,11 @@ function destroyAt(game: any, lane: number, z: number) {
 
 function clearDebris(game: any) {
   const debris = (game.__boulderDebris || []) as Debris[];
-  for (const d of debris) game.scene.remove(d.mesh);
+  for (const d of debris) {
+    game.scene.remove(d.mesh);
+    d.mesh.geometry.dispose();
+    d.mesh.material.dispose();
+  }
   game.__boulderDebris = [];
 }
 
@@ -190,8 +195,7 @@ function updateDebris(game: any, dt: number) {
     if (d.life <= 0 || d.mesh.position.y < -.5 || d.mesh.position.z > 18) {
       game.scene.remove(d.mesh);
       d.mesh.geometry.dispose();
-      if (Array.isArray(d.mesh.material)) d.mesh.material.forEach((m: T.Material) => m.dispose());
-      else d.mesh.material.dispose();
+      d.mesh.material.dispose();
       debris.splice(i, 1);
     }
   }
@@ -206,19 +210,19 @@ function advanceBoulder(game: any, dt: number) {
   const z = prevZ + BOULDER_SPEED * dt;
   game.__boulderZ = z;
 
-  // IMPORTANT: +Z is the player's direction in this runner. The boulder therefore
-  // starts far behind the obstacles and travels toward z=+1.2, i.e. straight at us.
+  // In this runner +Z is toward the camera/player. The boulder starts at -108
+  // and travels toward +1.2, so its motion is unambiguously ONCOMING.
   boulder.position.x = lane * 2.2 + game.bendOff(z);
   boulder.position.y = game.groundY + BOULDER_RADIUS - .05;
   boulder.position.z = z;
 
+  // Roll around the transverse axle while translating forward at high speed.
   const roll = BOULDER_SPEED * dt / BOULDER_RADIUS;
   boulder.rotation.x -= roll;
   boulder.rotation.z += roll * .035;
 
-  // Destroy BEFORE RunnerGame.step() moves the world and performs player collision.
-  // This prevents the normal obstacle collision from killing the player before the
-  // oncoming boulder has had a chance to smash the obstacle out of the lane.
+  // Smash objects BEFORE the normal runner collision pass. This is important:
+  // otherwise the ordinary obstacle collision can end the run first.
   const items = (game.items || []) as any[];
   for (const item of [...items]) {
     if (!item || item.lane !== lane) continue;
@@ -256,8 +260,8 @@ proto.step = function (dt: number) {
     return originalStep.call(this, dt);
   }
 
-  // Spawn/advance the boulder FIRST, so it is a genuine oncoming hazard that
-  // destroys whatever is in front of it before the runner collision pass.
+  // The boulder is advanced before the base simulation. It is therefore a
+  // separate oncoming object, not another piece of the scrolling scenery.
   if (!game.__boulderActive && game.stats.time >= game.__boulderNextAt) {
     game.__boulderActive = true;
     game.__boulderLane = Math.floor(Math.random() * 3) - 1;
