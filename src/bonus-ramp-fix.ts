@@ -17,6 +17,16 @@ function ensureState(game: any) {
   return game.__bonusRamp;
 }
 
+function restoreOrangeVisual(game: any, item: any) {
+  const root = item.mesh as T.Group;
+  const template = game.prototypes.get('bonusCoin') as T.Group | undefined;
+  if (!template) return;
+  while (root.children.length) root.remove(root.children[0]);
+  for (const child of template.children) root.add(child.clone(true));
+  root.userData.bonusVisual = false;
+  delete root.userData.bonusType;
+}
+
 function makeBonusVisual(item: any, type: BonusType) {
   const root = item.mesh as T.Group;
   while (root.children.length) root.remove(root.children[0]);
@@ -58,10 +68,7 @@ function removeItem(game: any, item: any) {
 function activateBonus(game: any, item: any) {
   const state = ensureState(game);
   const now = game.stats.time as number;
-  if (now < BONUS_START_TIME) {
-    removeItem(game, item);
-    return;
-  }
+  if (now < BONUS_START_TIME) return;
 
   const type: BonusType = item.mesh.userData.bonusType === 'shield' ? 'shield' : 'magnet';
   if (type === 'magnet') state.magnetUntil = now + BONUS_DURATION;
@@ -79,14 +86,24 @@ function prepareBonusItems(game: any) {
     const item = game.items[i];
     if (item.type !== 'bonusCoin') continue;
 
-    // Absolute safety net: a bonus can never exist visually or functionally before 3 minutes.
+    // bonusCoin is the original orange +10 pickup unless it carries an explicit powerup type.
+    // Never delete the orange coin before 180 seconds.
+    const type = item.mesh.userData.bonusType as BonusType | undefined;
+    if (!type) {
+      if (item.mesh.userData.bonusVisual) restoreOrangeVisual(game, item);
+      item.checked = true;
+      continue;
+    }
+
+    // Powerups are unavailable before 3 real minutes.
     if (now < BONUS_START_TIME) {
-      removeItem(game, item);
+      delete item.mesh.userData.bonusType;
+      restoreOrangeVisual(game, item);
+      item.checked = true;
       continue;
     }
 
     item.checked = true;
-    const type: BonusType = item.mesh.userData.bonusType === 'shield' ? 'shield' : 'magnet';
     if (!item.mesh.userData.bonusVisual) makeBonusVisual(item, type);
   }
 }
@@ -95,7 +112,7 @@ function collectBonusesBeforeCollision(game: any) {
   if ((game.stats.time as number) < BONUS_START_TIME) return;
   for (let i = game.items.length - 1; i >= 0; i--) {
     const item = game.items[i];
-    if (item.type !== 'bonusCoin') continue;
+    if (item.type !== 'bonusCoin' || !item.mesh.userData.bonusType) continue;
     if (
       Math.abs(item.mesh.position.z - 1.2) < .9 &&
       Math.abs(item.mesh.position.x - game.runner.position.x) < .9 &&
@@ -114,12 +131,15 @@ function updateBonusHud(game: any, state: any) {
     game.host?.appendChild(hud);
     const style = document.createElement('style');
     style.textContent = `
-      .bonus-status { position:absolute; top:150px; left:28px; transform:none; display:flex; flex-wrap:wrap; gap:7px; max-width:280px; z-index:2; pointer-events:none; font:700 10px/1 Arial,sans-serif; letter-spacing:1px; text-transform:uppercase; }
+      .bonus-status { position:absolute; top:82px; left:28px; transform:none; display:flex; flex-wrap:wrap; gap:7px; max-width:280px; z-index:2; pointer-events:none; font:700 10px/1 Arial,sans-serif; letter-spacing:1px; text-transform:uppercase; }
       .bonus-badge { display:flex; align-items:center; gap:6px; padding:7px 10px; border:1px solid #ffffff70; border-radius:999px; background:#17152dcc; color:#fff; backdrop-filter:blur(5px); box-shadow:0 5px 18px #0002; }
       .bonus-dot { width:9px; height:9px; border-radius:50%; }
       .bonus-dot.magnet { background:#e94b62; }
       .bonus-dot.shield { background:#4b72e8; }
-      @media(max-width:700px) { .bonus-status { top:auto; left:12px; bottom:22px; max-width:calc(100vw - 24px); font-size:9px; gap:6px; } .bonus-badge { padding:6px 8px; } }
+      @media(max-width:700px) {
+        .bonus-status { top:78px; left:12px; bottom:auto; max-width:calc(100vw - 24px); font-size:9px; gap:6px; }
+        .bonus-badge { padding:6px 8px; }
+      }
     `;
     document.head.appendChild(style);
   }
@@ -152,15 +172,15 @@ proto.die = function () {
 proto.step = function (dt: number) {
   const state = ensureState(this);
 
-  // Handle bonus objects before the base collision loop so they can never be treated as obstacles.
+  // Prepare existing pickups before the base collision loop so powerups are never obstacles.
   prepareBonusItems(this);
   collectBonusesBeforeCollision(this);
   ORIGINALS.step.call(this, dt);
-  if (this.mode !== 'playing') return;
 
-  // The base step may have spawned a new bonus at the far end; prepare it immediately.
+  // The base step can spawn new pickups at the far end; classify them immediately afterward.
   prepareBonusItems(this);
   collectBonusesBeforeCollision(this);
+  if (this.mode !== 'playing') return;
 
   const now = this.stats.time as number;
   if (state.magnetUntil > now) {
@@ -170,6 +190,7 @@ proto.step = function (dt: number) {
       const dz = item.mesh.position.z - 1.2;
       if (dz < -120 || dz > 3) continue;
       const pull = Math.min(1, dt * 9);
+      // Do not filter by lane: every ordinary coin on all three lanes is attracted.
       item.mesh.position.x = T.MathUtils.lerp(item.mesh.position.x, this.runner.position.x, pull);
       item.mesh.position.y = T.MathUtils.lerp(item.mesh.position.y, this.groundY + this.jump + .9, pull);
       if (Math.abs(dz) < .9 && Math.abs(item.mesh.position.x - this.runner.position.x) < 1.0) {
