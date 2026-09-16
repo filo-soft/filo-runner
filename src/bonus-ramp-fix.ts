@@ -5,7 +5,7 @@ type Bonus = { mesh: T.Group; type: 'magnet' | 'shield'; z: number; lane: number
 type Ramp = { mesh: T.Group; z: number; bonusZ?: number };
 const BONUSES: Bonus[] = [];
 const RAMPS: Ramp[] = [];
-const ORIGINALS = { start: (RunnerGame.prototype as any).start, step: (RunnerGame.prototype as any).step, die: (RunnerGame.prototype as any).die, spawn: (RunnerGame.prototype as any).spawn };
+const ORIGINALS = { start: (RunnerGame.prototype as any).start, step: (RunnerGame.prototype as any).step, die: (RunnerGame.prototype as any).die, spawn: (RunnerGame.prototype as any).spawn, supportAt: (RunnerGame.prototype as any).supportAt };
 const proto = RunnerGame.prototype as any;
 
 const RAMP_INTERVAL_MIN = 620;
@@ -102,6 +102,28 @@ proto.start = function () {
 proto.spawn = function () {
   if (RAMPS.some(r => r.z < RAMP_SAFE_END && r.z > -120)) return;
   ORIGINALS.spawn.call(this);
+};
+
+// Critical fix: RunnerGame.step() asks supportAt() BEFORE moving the runner.
+// The previous ramp code only changed groundY AFTER step(), so the player could
+// visually reach the staircase but physically remain on the flat track and pass through it.
+proto.supportAt = function (z: number) {
+  let h = ORIGINALS.supportAt.call(this, z);
+  const runnerX = this.runner.position.x as number;
+  for (const ramp of RAMPS) {
+    const rampX = ramp.mesh.position.x as number;
+    if (Math.abs(rampX - runnerX) >= 1.15) continue;
+    const rel = z - ramp.z;
+    let rh = 0;
+    if (rel >= 0.01 && rel < 1.19) rh = .4;
+    else if (rel >= 1.19 && rel < 2.37) rh = .8;
+    else if (rel >= 2.37 && rel < 3.55) rh = 1.2;
+    else if (rel >= 3.55 && rel < 4.73) rh = 1.6;
+    else if (rel >= 4.73 && rel < RAMP_TOP_START) rh = 2.0;
+    else if (rel >= RAMP_TOP_START && rel <= RAMP_END) rh = 2.0;
+    if (rh > h) h = rh;
+  }
+  return h;
 };
 
 proto.die = function () {
