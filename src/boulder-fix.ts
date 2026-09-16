@@ -3,11 +3,19 @@ import { RunnerGame } from './game';
 
 const proto = RunnerGame.prototype as any;
 const BOULDER_INTERVAL = 90;
-const BOULDER_START_Z = -98;
-const BOULDER_SPEED = 27;
+const BOULDER_START_Z = -108;
+const BOULDER_SPEED = 42;
 const BOULDER_RADIUS = 1.45;
-const BOULDER_VISIBLE_Z = -92;
-const BOULDER_HIT_REACH = 2.9;
+const BOULDER_HIT_REACH = 3.2;
+const BREAKABLE = new Set(['block', 'pillar', 'arch', 'wall', 'gate']);
+const COLLECTIBLES = new Set(['coin', 'bonusCoin']);
+
+type Debris = {
+  mesh: T.Mesh;
+  velocity: T.Vector3;
+  spin: T.Vector3;
+  life: number;
+};
 
 const makeMarbleTexture = () => {
   const canvas = document.createElement('canvas');
@@ -48,14 +56,12 @@ proto.buildPrototypes = function () {
   rock.receiveShadow = true;
   boulder.add(rock);
 
-  // An asymmetric marble seam makes the rolling motion unmistakable instead of
-  // looking like a sphere that only spins in place.
+  // Asymmetric seams make the actual rolling motion readable from the camera.
   const seamMat = new T.MeshStandardMaterial({ color: '#7e7a72', roughness: .48, metalness: .01 });
   const seam = new T.Mesh(new T.TorusGeometry(1.01, .028, 7, 32), seamMat);
   seam.rotation.set(Math.PI * .5, .42, .18);
   seam.scale.set(1.02, .76, 1);
   boulder.add(seam);
-
   const seam2 = new T.Mesh(new T.TorusGeometry(.73, .022, 7, 28), seamMat);
   seam2.rotation.set(1.08, -.65, .42);
   seam2.scale.set(.92, .78, 1.08);
@@ -77,103 +83,198 @@ function ensureBoulder(game: any) {
   game.__boulderZ = BOULDER_START_Z;
   game.__boulderActive = false;
   game.__boulderNextAt = BOULDER_INTERVAL;
+  game.__boulderDebris = [] as Debris[];
   game.__boulderDustAt = 0;
   return boulder;
 }
 
-function destroyOnBoulder(game: any, lane: number, z: number) {
+function getMaterial(item: any): T.Material {
+  let material: T.Material | undefined;
+  item.mesh?.traverse?.((obj: any) => {
+    if (!material && obj.isMesh && obj.material) {
+      material = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+    }
+  });
+  return material || new T.MeshStandardMaterial({ color: '#d7c8ad', roughness: .85 });
+}
+
+function shatterObstacle(game: any, item: any, impact: T.Vector3, lane: number) {
+  const type = item.type;
+  if (!BREAKABLE.has(type)) return;
+
+  const box = new T.Box3().setFromObject(item.mesh);
+  const size = box.getSize(new T.Vector3());
+  const center = box.getCenter(new T.Vector3());
+  const mat = getMaterial(item).clone();
+  const debris: Debris[] = game.__boulderDebris || (game.__boulderDebris = []);
+  const count = type === 'pillar' ? 11 : type === 'arch' ? 13 : 10;
+
+  for (let i = 0; i < count; i++) {
+    const scale = .24 + Math.random() * .28;
+    const sx = Math.max(.16, size.x * scale * (.7 + Math.random() * .65));
+    const sy = Math.max(.14, size.y * scale * (.55 + Math.random() * .8));
+    const sz = Math.max(.16, size.z * scale * (.7 + Math.random() * .65));
+    const mesh = new T.Mesh(new T.BoxGeometry(sx, sy, sz), mat);
+    mesh.position.set(
+      center.x + (Math.random() - .5) * size.x * .75,
+      Math.max(.12, center.y + (Math.random() - .5) * size.y * .65),
+      center.z + (Math.random() - .5) * size.z * .75,
+    );
+    mesh.rotation.set(Math.random() * 2, Math.random() * 2, Math.random() * 2);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    const awayX = mesh.position.x - impact.x;
+    const awayZ = mesh.position.z - impact.z;
+    mesh.userData.baseLane = lane;
+    debris.push({
+      mesh,
+      velocity: new T.Vector3(
+        awayX * 1.4 + (Math.random() - .5) * 4,
+        3.2 + Math.random() * 5.2,
+        awayZ * .9 + (Math.random() - .5) * 3 + 2.5,
+      ),
+      spin: new T.Vector3(
+        (Math.random() - .5) * 9,
+        (Math.random() - .5) * 9,
+        (Math.random() - .5) * 9,
+      ),
+      life: .75 + Math.random() * .55,
+    });
+    game.scene.add(mesh);
+  }
+
+  game.burst(impact, true, 12);
+}
+
+function destroyAt(game: any, lane: number, z: number) {
   const items = (game.items || []) as any[];
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i];
     if (!item || item.lane !== lane) continue;
     const type = item.type;
-    if (!['block', 'pillar', 'arch', 'wall', 'gate', 'coin', 'bonusCoin'].includes(type)) continue;
-    if (Math.abs(Number(item.mesh?.position?.z) - z) > 3.1) continue;
-    const pos = item.mesh.position.clone();
-    game.burst(pos, true, type === 'coin' || type === 'bonusCoin' ? 5 : 14);
-    if (type !== 'coin' && type !== 'bonusCoin') game.burst(pos, true, 7);
+    if (!BREAKABLE.has(type) && !COLLECTIBLES.has(type)) continue;
+    const itemZ = Number(item.mesh?.position?.z);
+    if (!Number.isFinite(itemZ) || Math.abs(itemZ - z) > BOULDER_HIT_REACH) continue;
+
+    const impact = item.mesh.position.clone();
+    if (BREAKABLE.has(type)) {
+      shatterObstacle(game, item, impact, lane);
+    } else {
+      game.burst(impact, true, 6);
+    }
     game.recycle(item);
     items.splice(i, 1);
   }
 }
 
-const originalStep = proto.step;
-proto.step = function (dt: number) {
-  const wasPlaying = this.mode === 'playing';
-  const boulder = ensureBoulder(this);
+function clearDebris(game: any) {
+  const debris = (game.__boulderDebris || []) as Debris[];
+  for (const d of debris) game.scene.remove(d.mesh);
+  game.__boulderDebris = [];
+}
 
-  if (!wasPlaying && this.mode !== 'playing') {
-    if (boulder) boulder.visible = false;
-    this.__boulderActive = false;
-    this.__boulderNextAt = BOULDER_INTERVAL;
-    return originalStep.call(this, dt);
+function updateDebris(game: any, dt: number) {
+  const debris = (game.__boulderDebris || []) as Debris[];
+  const worldSpeed = Math.min(21, 10.5 + Number(game.stats?.time || 0) * .12);
+  for (let i = debris.length - 1; i >= 0; i--) {
+    const d = debris[i];
+    d.life -= dt;
+    d.velocity.y -= 15 * dt;
+    d.mesh.position.x += d.velocity.x * dt;
+    d.mesh.position.y += d.velocity.y * dt;
+    d.mesh.position.z += (worldSpeed + d.velocity.z) * dt;
+    d.mesh.rotation.x += d.spin.x * dt;
+    d.mesh.rotation.y += d.spin.y * dt;
+    d.mesh.rotation.z += d.spin.z * dt;
+    if (d.life <= 0 || d.mesh.position.y < -.5 || d.mesh.position.z > 18) {
+      game.scene.remove(d.mesh);
+      d.mesh.geometry.dispose();
+      if (Array.isArray(d.mesh.material)) d.mesh.material.forEach((m: T.Material) => m.dispose());
+      else d.mesh.material.dispose();
+      debris.splice(i, 1);
+    }
   }
+}
 
-  originalStep.call(this, dt);
-  if (this.mode !== 'playing' || !boulder) return;
+function advanceBoulder(game: any, dt: number) {
+  const boulder = game.__boulderGroup as T.Group | undefined;
+  if (!boulder || !game.__boulderActive || game.mode !== 'playing') return;
 
-  if (!this.__boulderActive && this.stats.time >= this.__boulderNextAt) {
-    this.__boulderActive = true;
-    this.__boulderLane = Math.floor(Math.random() * 3) - 1;
-    this.__boulderZ = BOULDER_START_Z;
-    this.__boulderDustAt = 0;
-    boulder.visible = true;
-    boulder.position.set(
-      this.__boulderLane * 2.2 + this.bendOff(BOULDER_START_Z),
-      this.groundY + BOULDER_RADIUS - .05,
-      BOULDER_START_Z,
-    );
-    boulder.rotation.set(0, 0, 0);
-    this.onToast('КАТИТСЯ ВАЛУН!');
-    this.tone(95, .45, 45, 'triangle');
-  }
-  if (!this.__boulderActive) return;
-
-  const lane = this.__boulderLane as number;
-  const prevZ = this.__boulderZ as number;
-
-  // Game world scrolls toward the player (+Z). The boulder gets its own
-  // substantially faster +Z velocity, so it physically catches up to us.
+  const lane = game.__boulderLane as number;
+  const prevZ = game.__boulderZ as number;
   const z = prevZ + BOULDER_SPEED * dt;
-  this.__boulderZ = z;
+  game.__boulderZ = z;
 
-  boulder.position.x = lane * 2.2 + this.bendOff(z);
-  boulder.position.y = this.groundY + BOULDER_RADIUS - .05;
+  // IMPORTANT: +Z is the player's direction in this runner. The boulder therefore
+  // starts far behind the obstacles and travels toward z=+1.2, i.e. straight at us.
+  boulder.position.x = lane * 2.2 + game.bendOff(z);
+  boulder.position.y = game.groundY + BOULDER_RADIUS - .05;
   boulder.position.z = z;
 
-  // Roll around the actual transverse axle. The asymmetric seams provide a clear
-  // visual reference for the rotation while the whole object advances down-lane.
   const roll = BOULDER_SPEED * dt / BOULDER_RADIUS;
   boulder.rotation.x -= roll;
   boulder.rotation.z += roll * .035;
 
-  // Break anything in the boulder's swept path. Also use a forward reach so an
-  // obstacle cannot visually sit inside the boulder before the collision check fires.
-  const items = (this.items || []) as any[];
+  // Destroy BEFORE RunnerGame.step() moves the world and performs player collision.
+  // This prevents the normal obstacle collision from killing the player before the
+  // oncoming boulder has had a chance to smash the obstacle out of the lane.
+  const items = (game.items || []) as any[];
   for (const item of [...items]) {
     if (!item || item.lane !== lane) continue;
     const type = item.type;
-    if (!['block', 'pillar', 'arch', 'wall', 'gate', 'coin', 'bonusCoin'].includes(type)) continue;
+    if (!BREAKABLE.has(type) && !COLLECTIBLES.has(type)) continue;
     const itemZ = Number(item.mesh?.position?.z);
     if (!Number.isFinite(itemZ)) continue;
-    const crossed = prevZ <= itemZ && itemZ <= z + BOULDER_HIT_REACH;
-    const nearFront = itemZ >= z - .8 && itemZ <= z + BOULDER_HIT_REACH;
-    if (crossed || nearFront) destroyOnBoulder(this, lane, itemZ);
+    if (itemZ >= prevZ - 1.2 && itemZ <= z + BOULDER_HIT_REACH) destroyAt(game, lane, itemZ);
   }
 
-  // Dust trail reinforces that the boulder is travelling, not spinning in place.
-  this.__boulderDustAt -= dt;
-  if (this.__boulderDustAt <= 0) {
-    this.__boulderDustAt = .055;
-    const dustPos = new T.Vector3(boulder.position.x, this.groundY + .08, z - BOULDER_RADIUS * .65);
-    this.burst(dustPos, true, 2);
+  game.__boulderDustAt -= dt;
+  if (game.__boulderDustAt <= 0) {
+    game.__boulderDustAt = .045;
+    game.burst(new T.Vector3(boulder.position.x, game.groundY + .08, z - BOULDER_RADIUS * .8), true, 3);
   }
 
   if (z > 15) {
     boulder.visible = false;
-    this.__boulderActive = false;
-    this.__boulderNextAt = this.stats.time + BOULDER_INTERVAL;
-  } else if (z >= BOULDER_VISIBLE_Z) {
-    boulder.visible = true;
+    game.__boulderActive = false;
+    game.__boulderNextAt = game.stats.time + BOULDER_INTERVAL;
   }
+}
+
+const originalStep = proto.step;
+proto.step = function (dt: number) {
+  const game = this as any;
+  const wasPlaying = game.mode === 'playing';
+  const boulder = ensureBoulder(game);
+
+  if (!wasPlaying) {
+    if (boulder) boulder.visible = false;
+    clearDebris(game);
+    game.__boulderActive = false;
+    game.__boulderNextAt = BOULDER_INTERVAL;
+    return originalStep.call(this, dt);
+  }
+
+  // Spawn/advance the boulder FIRST, so it is a genuine oncoming hazard that
+  // destroys whatever is in front of it before the runner collision pass.
+  if (!game.__boulderActive && game.stats.time >= game.__boulderNextAt) {
+    game.__boulderActive = true;
+    game.__boulderLane = Math.floor(Math.random() * 3) - 1;
+    game.__boulderZ = BOULDER_START_Z;
+    game.__boulderDustAt = 0;
+    boulder.visible = true;
+    boulder.position.set(
+      game.__boulderLane * 2.2 + game.bendOff(BOULDER_START_Z),
+      game.groundY + BOULDER_RADIUS - .05,
+      BOULDER_START_Z,
+    );
+    boulder.rotation.set(0, 0, 0);
+    game.onToast('КАТИТСЯ ВАЛУН!');
+    game.tone(95, .45, 45, 'triangle');
+  }
+
+  advanceBoulder(game, dt);
+  originalStep.call(this, dt);
+  updateDebris(game, dt);
 };
