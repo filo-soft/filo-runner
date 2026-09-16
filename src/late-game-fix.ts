@@ -10,7 +10,7 @@ const originalSupportAt = proto.supportAt;
 const originalControl = proto.control;
 
 const BONUS_START_TIME = 180;
-const BONUS_CHANCE = .02;
+const BONUS_CHANCE = .01;
 
 const ensureExtraRamp = function () {
   if (this.prototypes.has('stairRamp')) return;
@@ -71,6 +71,19 @@ const activeBonus = function (game: any) {
   return state.magnetUntil > now || state.shieldUntil > now;
 };
 
+const hasPowerupInWorld = function (game: any) {
+  return (game.items as any[]).some((item: any) =>
+    item.type === 'bonusCoin' && !!item.mesh.userData.bonusType
+  );
+};
+
+const nextPowerupType = function (game: any) {
+  game.__bonusRamp = game.__bonusRamp || { magnetUntil: 0, shieldUntil: 0, nextPowerupType: 'magnet' };
+  const type = game.__bonusRamp.nextPowerupType === 'shield' ? 'shield' : 'magnet';
+  game.__bonusRamp.nextPowerupType = type === 'magnet' ? 'shield' : 'magnet';
+  return type;
+};
+
 const replaceBlueCoin = function (coin: any, powerup: boolean) {
   const lane = coin.lane as number;
   const z = coin.mesh.position.z as number;
@@ -85,7 +98,8 @@ const replaceBlueCoin = function (coin: any, powerup: boolean) {
   bonus.mesh.position.x = bonus.laneX + this.bendOff(z);
   bonus.checked = true;
   bonus.mesh.userData.bonusPhase = powerup ? 'powerup' : 'orange';
-  if (powerup) bonus.mesh.userData.bonusType = Math.random() < .5 ? 'magnet' : 'shield';
+  delete bonus.mesh.userData.bonusVisual;
+  if (powerup) bonus.mesh.userData.bonusType = nextPowerupType(this);
   else delete bonus.mesh.userData.bonusType;
 };
 
@@ -115,14 +129,13 @@ proto.spawn = function () {
   const beforeItems = new Set((this.items as any[]));
   originalSpawn.call(this);
 
-  // The rare slot is now 2%. Before 180s it stays the old orange +10 coin.
-  // Never create a new bonus while magnet/shield is already active.
-  if (Math.random() < BONUS_CHANCE && !activeBonus(this)) {
+  // Powerups are a genuinely rare 1% slot, and only one powerup may exist in the world at once.
+  if (Math.random() < BONUS_CHANCE && time >= BONUS_START_TIME && !activeBonus(this) && !hasPowerupInWorld(this)) {
     const newCoins = (this.items as any[]).filter((item: any) =>
       !beforeItems.has(item) && item.type === 'coin'
     );
     const target = newCoins[newCoins.length - 1];
-    if (target) replaceBlueCoin.call(this, target, time >= BONUS_START_TIME);
+    if (target) replaceBlueCoin.call(this, target, true);
   }
 
   if (distance >= 9000 && completedRow >= 1 && completedRow % 3 === 0 && completedRow % 7 !== 0) {
@@ -138,8 +151,8 @@ proto.spawn = function () {
     this.addItem('pillar', lanes[2], -92);
   }
 
-  // Late-game stair bonus is also suppressed while another powerup is active.
-  if (distance >= 8000 && time >= BONUS_START_TIME && completedRow >= 1 && completedRow % 19 === 0 && !activeBonus(this)) {
+  // The late stair powerup is also rare and cannot coexist with another powerup.
+  if (distance >= 8000 && time >= BONUS_START_TIME && completedRow >= 1 && completedRow % 31 === 0 && !activeBonus(this) && !hasPowerupInWorld(this)) {
     const lane = (((completedRow + 1) % 3) - 1) as number;
     this.addItem('stairRamp', lane, -103);
     const coin = this.addItem('bonusCoin', lane, -104.25);
@@ -148,7 +161,8 @@ proto.spawn = function () {
     coin.mesh.position.y = 2.32;
     coin.checked = true;
     coin.mesh.userData.bonusPhase = 'powerup';
-    coin.mesh.userData.bonusType = Math.random() < .5 ? 'magnet' : 'shield';
+    delete coin.mesh.userData.bonusVisual;
+    coin.mesh.userData.bonusType = nextPowerupType(this);
   }
 
   sanitizeCoins.call(this);
@@ -157,6 +171,7 @@ proto.spawn = function () {
 proto.start = function () {
   originalStart.call(this);
   this.__coinReady = false;
+  this.__bonusRamp = { magnetUntil: 0, shieldUntil: 0, nextPowerupType: 'magnet' };
   setCoinReady(false);
 };
 
