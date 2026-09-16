@@ -33,10 +33,6 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Keep collectible trails readable: a coin is never left inside a ground obstacle.
-// This is intentionally lane-based, like the rest of the runner. If the original
-// pattern blocks a coin's lane, move it to the nearest free lane; if all three are
-// occupied, remove that coin instead of creating an impossible collectible.
 const sanitizeCoins = function () {
   const obstacles = (this.items as any[]).filter((item: any) =>
     item.type === 'block' || item.type === 'pillar' || item.type === 'arch'
@@ -45,16 +41,13 @@ const sanitizeCoins = function () {
 
   for (const coin of coins) {
     if (coin.mesh.position.y > 1.55) continue;
-
     const occupied = (lane: number) => obstacles.some((obstacle: any) =>
       obstacle.lane === lane && Math.abs(obstacle.mesh.position.z - coin.mesh.position.z) < 1.05
     );
     if (!occupied(coin.lane)) continue;
-
     const candidates = [-1, 0, 1]
       .filter((lane) => !occupied(lane))
       .sort((a, b) => Math.abs(a - coin.lane) - Math.abs(b - coin.lane));
-
     if (candidates.length) {
       const lane = candidates[0];
       coin.lane = lane;
@@ -106,14 +99,14 @@ proto.spawn = function () {
   const beforeItems = new Set((this.items as any[]));
   originalSpawn.call(this);
 
-  // At 16 km and beyond, the collectible trail switches entirely to orange
-  // bonus coins. Existing blue coins from this newly generated pattern are
-  // replaced in-place, so orange never stacks on top of blue.
-  if (distance >= 16000) {
-    const newBlueCoins = (this.items as any[]).filter((item: any) =>
+  // From 3 minutes onward, a 5% chance per newly spawned row turns one normal
+  // coin into the orange bonus coin. The orange coin is the dedicated bonus slot.
+  if (distance >= 360 && Math.random() < .05) {
+    const newCoins = (this.items as any[]).filter((item: any) =>
       !beforeItems.has(item) && item.type === 'coin'
     );
-    for (const coin of newBlueCoins) replaceBlueCoin.call(this, coin);
+    const target = newCoins[newCoins.length - 1];
+    if (target) replaceBlueCoin.call(this, target);
   }
 
   if (distance >= 9000 && completedRow >= 1 && completedRow % 3 === 0 && completedRow % 7 !== 0) {
@@ -121,9 +114,6 @@ proto.spawn = function () {
     this.addItem(completedRow % 2 === 0 ? 'block' : 'pillar', lane, -111);
   }
 
-  // High-intensity sequence: never stack all three hazards in one lane.
-  // Subway-Surfers-style patterns are readable chunks: the player should read a
-  // sequence of decisions, not a visually tangled vertical pile of objects.
   if (distance >= 8000 && completedRow >= 1 && completedRow % 11 === 0) {
     const baseLane = (((completedRow * 2) % 3) - 1) as number;
     const lanes = [baseLane, baseLane === 1 ? -1 : 1, baseLane === 0 ? -1 : 0];
@@ -132,7 +122,7 @@ proto.spawn = function () {
     this.addItem('pillar', lanes[2], -92);
   }
 
-  // Separate, rare walkable staircase ramp, not the existing launch ramp.
+  // Original walkable staircase ramp remains unchanged.
   if (distance >= 8000 && completedRow >= 1 && completedRow % 19 === 0) {
     const lane = (((completedRow + 1) % 3) - 1) as number;
     this.addItem('stairRamp', lane, -103);
@@ -140,23 +130,6 @@ proto.spawn = function () {
     coin.laneX = lane * 2.2;
     coin.mesh.position.x = coin.laneX + this.bendOff(coin.mesh.position.z);
     coin.mesh.position.y = 2.32;
-  }
-
-  // From 10000 m, replace the final blue coin of the regular six-coin trail
-  // with one orange bonus coin. It occupies the exact same slot as the old
-  // last blue coin instead of being added on top of it.
-  if (distance >= 10000 && distance < 16000 && completedRow >= 1 && completedRow % 5 === 0 && completedRow % 7 !== 0) {
-    const lane = (((completedRow + 1) % 3) - 1) as number;
-    const target = (this.items as any[]).find((item: any) =>
-      item.type === 'coin' && item.lane === lane && Math.abs(item.mesh.position.z - (-84)) < .35
-    );
-    if (target) replaceBlueCoin.call(this, target);
-    else {
-      const coin = this.addItem('bonusCoin', lane, -84);
-      coin.laneX = lane * 2.2;
-      coin.mesh.position.x = coin.laneX + this.bendOff(coin.mesh.position.z);
-      coin.mesh.position.y = .9;
-    }
   }
 
   sanitizeCoins.call(this);
@@ -175,7 +148,6 @@ proto.step = function (dt: number) {
     this.__coinReady = ready;
     setCoinReady(ready);
   }
-
   if ((this as any).__edgeBump) {
     this.shake = Math.max(this.shake as number, .18);
     this.tone?.(150, .07, 75, 'triangle');
