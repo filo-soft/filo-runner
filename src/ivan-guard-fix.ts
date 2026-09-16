@@ -95,7 +95,6 @@ const cloneBlueGuard = (game: IvanGame) => {
     );
     label.name = 'IVANBackLabel';
     label.position.set(0, 1.72, -.285);
-    label.rotation.y = Math.PI;
     root.add(label);
   }
 
