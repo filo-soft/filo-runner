@@ -86,6 +86,10 @@ proto.spawn = function () {
     bonus.laneX = lane * 2.2;
     bonus.mesh.position.x = bonus.laneX + this.bendOff(bonus.mesh.position.z);
     bonus.mesh.position.y = 2.32;
+    // bonusCoin is pooled: always clear any previous magnet/shield state.
+    delete bonus.mesh.userData.bonusType;
+    delete bonus.mesh.userData.bonusVisual;
+    delete bonus.mesh.userData.bonusPhase;
     const safe = lane === 0 ? (row % 2 ? -1 : 1) : 0;
     coinLine(safe, -82, 5, 1.55, .9);
     this.row++;
@@ -137,136 +141,4 @@ proto.supportAt = function (z: number) {
     }
   }
   return h;
-};
-
-proto.startMusic = function () {
-  if (!this.sound || this.musicTimer) return;
-  this.unlockAudio();
-  const playPhrase = () => {
-    if (!this.sound || !this.audio || this.audio.state === 'closed') return;
-    const a: AudioContext = this.audio;
-    const notes = [293.66, 329.63, 349.23, 392.0, 440.0, 392.0, 349.23, 329.63];
-    const base = a.currentTime + .03;
-    notes.forEach((freq, i) => {
-      const osc = a.createOscillator();
-      const gain = a.createGain();
-      osc.type = 'sine';
-      const t = base + i * .52;
-      osc.frequency.setValueAtTime(freq, t);
-      gain.gain.setValueAtTime(.0001, t);
-      gain.gain.linearRampToValueAtTime(.014, t + .08);
-      gain.gain.exponentialRampToValueAtTime(.0001, t + .48);
-      osc.connect(gain); gain.connect(a.destination);
-      osc.start(t); osc.stop(t + .5);
-      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
-    });
-  };
-  playPhrase();
-  this.musicTimer = window.setInterval(playPhrase, 4160);
-};
-
-proto.stopMusic = function () {
-  if (this.musicTimer) { window.clearInterval(this.musicTimer); this.musicTimer = 0; }
-};
-
-proto.unlockSound = function () {
-  if (!this.sound) return;
-  this.unlockAudio();
-  this.startMusic();
-};
-
-proto.toggleSound = function () {
-  const enabled = originalToggleSound.call(this);
-  if (enabled) this.startMusic(); else this.stopMusic();
-  return enabled;
-};
-
-proto.step = function (dt: number) {
-  const t = this.stats.time as number;
-  const factor = 1.12 + Math.min(.32, Math.max(0, t - 8) * .004);
-  const toast = this.onToast;
-  this.onToast = (text: string) => {
-    if (/^\d+ монет/.test(text)) return;
-    if (/^Темп растёт/.test(text)) {
-      const last = this.lastTempoToast as number | undefined;
-      if (last !== undefined && t - last < 60) return;
-      this.lastTempoToast = t;
-    }
-    toast(text);
-  };
-
-  for (let i = this.items.length - 1; i >= 0; i--) {
-    const item = this.items[i];
-    if (item.type !== 'bonusCoin') continue;
-    const z = item.mesh.position.z;
-    if (Math.abs(z - 1.2) < .7 && Math.abs(item.mesh.position.x - this.runner.position.x) < 1.15 && Math.abs(item.mesh.position.y - (this.groundY + this.jump + .9)) < 1.0) {
-      this.stats.coins += 10;
-      this.stats.score += 100;
-      this.burst(item.mesh.position);
-      this.tone(980, .16, 1450);
-      this.recycle(item);
-      this.items.splice(i, 1);
-      continue;
-    }
-  }
-
-  originalStep.call(this, dt * factor);
-
-  const distance = this.stats.distance as number;
-  const next = (this.nextLandmarkDistance as number | undefined) ?? 1000;
-  if (distance >= next) {
-    const side = Math.random() < .5 ? -1 : 1;
-    const statue = this.addItem('statue', side, -112);
-    statue.laneX = side * 5.6;
-    statue.mesh.position.x = statue.laneX + this.bendOff(statue.mesh.position.z);
-    statue.mesh.position.y = .05;
-    if (Math.floor(distance / 1000) % 3 === 0) {
-      const temple = this.addItem('sideTemple', -side, -118);
-      temple.laneX = -side * 8.2;
-      temple.mesh.position.x = temple.laneX + this.bendOff(temple.mesh.position.z);
-      temple.mesh.position.y = 0;
-    }
-    this.nextLandmarkDistance = Math.floor(distance / 1000 + 1) * 1000;
-  }
-
-  this.onToast = toast;
-};
-
-proto.buildWorld = function () {
-  originalBuildWorld.call(this);
-  const temple = this.templeGroup;
-  if (temple) {
-    temple.scale.set(1.12, 1.75, 1.12);
-    temple.position.y = .9;
-    // Keep the columns below, but lift the entablature and triangular roof well above the mobile camera line.
-    temple.children.forEach((child: T.Object3D) => {
-      if (child.position.y > 8.4) child.position.y += 4.5;
-    });
-  }
-};
-
-proto.bendOff = function (z: number) {
-  return this.bend * T.MathUtils.clamp((-z - 14) / 70, 0, 1) ** 2 * 10;
-};
-
-proto.animatePose = function () {
-  originalAnimatePose.call(this);
-  const d = this.duck as number;
-  if (d > .08) {
-    (this.legs as any[]).forEach(({ thigh, knee }, i) => {
-      const s = i === 0 ? 1 : -1;
-      thigh.rotation.x = -1.22 + s * .07 + (1 - d) * .45;
-      thigh.rotation.z = s * (.1 + d * .04);
-      knee.rotation.x = .06 + (1 - d) * .22;
-      knee.rotation.z = -s * .025;
-      thigh.visible = true;
-      knee.visible = true;
-    });
-  }
-};
-
-proto.start = function () {
-  originalStart.call(this);
-  this.bendTimer = 8;
-  this.nextLandmarkDistance = 1000;
 };
