@@ -1,28 +1,8 @@
 import * as T from 'three';
-import logoSvg from './assets/branding/logo железно.svg?url';
 import { RunnerGame } from './game';
 
 const proto = RunnerGame.prototype as any;
 const originalBuildPrototypes = proto.buildPrototypes;
-
-const logoTexture = (() => {
-  const texture = new T.Texture();
-  texture.colorSpace = T.SRGBColorSpace;
-  texture.anisotropy = 4;
-  const image = new Image();
-  image.onload = () => { texture.image = image; texture.needsUpdate = true; };
-  image.src = logoSvg;
-  return texture;
-})();
-
-const makePanel = (width: number, height: number, backingColor = '#2457a6') => {
-  const group = new T.Group();
-  const backing = new T.Mesh(new T.BoxGeometry(width + .16, height + .16, .12), new T.MeshStandardMaterial({ color: backingColor, roughness: .7 }));
-  backing.castShadow = true; backing.receiveShadow = true; group.add(backing);
-  const panel = new T.Mesh(new T.PlaneGeometry(width, height), new T.MeshBasicMaterial({ map: logoTexture, transparent: true, side: T.DoubleSide, depthWrite: false }));
-  panel.position.z = .081; group.add(panel);
-  return group;
-};
 
 const addGreekRelief = (gate: T.Group) => {
   if (gate.userData.greekRoofRelief) return;
@@ -51,5 +31,4 @@ proto.buildPrototypes = function () {
   if (gate) addGreekRelief(gate);
 };
 
-// The ZHELEZNO branding remains on the houses. Only the distant temple/horizon building
-// is intentionally left without that logo.
+// ZHELEZNO branding remains on the houses; the distant temple/horizon building has no logo.
