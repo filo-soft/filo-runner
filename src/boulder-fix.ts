@@ -7,8 +7,8 @@ const BOULDER_START_Z = -108;
 const BOULDER_SPEED = 42;
 const BOULDER_RADIUS = 1.45;
 const BOULDER_HIT_REACH = 3.2;
-// Only ordinary obstacles are breakable. The large roofed temple/gate is architectural scenery.
-const BREAKABLE = new Set(['block', 'pillar', 'arch']);
+// Ordinary obstacles and both playable ramps are breakable. The large roofed temple/gate is scenery.
+const BREAKABLE = new Set(['block', 'pillar', 'arch', 'ramp', 'stairRamp']);
 const COLLECTIBLES = new Set(['coin', 'bonusCoin']);
 
 type Debris = { mesh: T.Mesh; velocity: T.Vector3; spin: T.Vector3; life: number; };
@@ -54,10 +54,10 @@ function shatterObstacle(game: any, item: any, impact: T.Vector3, lane: number) 
   const type = item.type; if (!BREAKABLE.has(type)) return;
   const box = new T.Box3().setFromObject(item.mesh); const size = box.getSize(new T.Vector3()); const center = box.getCenter(new T.Vector3());
   const debris: Debris[] = game.__boulderDebris || (game.__boulderDebris = []);
-  // Smaller, shorter-lived fragments keep the camera readable even when a pillar/arch breaks.
-  const count = type === 'pillar' ? 7 : type === 'arch' ? 9 : 6;
+  // Ramps are longer, so use a little more debris without making the pieces huge.
+  const count = type === 'ramp' || type === 'stairRamp' ? 14 : type === 'pillar' ? 7 : type === 'arch' ? 9 : 6;
   for (let i = 0; i < count; i++) {
-    const scale = .13 + Math.random() * .17;
+    const scale = type === 'ramp' || type === 'stairRamp' ? .08 + Math.random() * .11 : .13 + Math.random() * .17;
     const sx = Math.max(.11, size.x * scale * (.7 + Math.random() * .45));
     const sy = Math.max(.10, size.y * scale * (.65 + Math.random() * .55));
     const sz = Math.max(.11, size.z * scale * (.7 + Math.random() * .45));
@@ -101,8 +101,6 @@ function advanceBoulder(game: any, dt: number) {
   boulder.position.x = lane * 2.2 + game.bendOff(z); boulder.position.y = game.groundY + BOULDER_RADIUS - .05; boulder.position.z = z;
   const roll = BOULDER_SPEED * dt / BOULDER_RADIUS; boulder.rotation.x -= roll; boulder.rotation.z += roll * .035;
 
-  // A boulder is a hard game-over hazard: unlike normal obstacles, jumping/sliding does not save the run.
-  // The normal RunnerGame.die() path is used so the existing 2000-coin second-life revive can rescue it.
   const runner = game.runner as T.Group | undefined;
   if (runner && prevZ < 1.2 && z >= 1.2 && Math.abs(boulder.position.x - runner.position.x) < 1.35) {
     game.die();
@@ -110,8 +108,16 @@ function advanceBoulder(game: any, dt: number) {
   }
 
   const items = (game.items || []) as any[];
-  for (const item of [...items]) { if (!item || item.lane !== lane) continue; const type = item.type; if (!BREAKABLE.has(type) && !COLLECTIBLES.has(type)) continue; const itemZ = Number(item.mesh?.position?.z); if (!Number.isFinite(itemZ)) continue; if (itemZ >= prevZ - 1.2 && itemZ <= z + BOULDER_HIT_REACH) destroyAt(game, lane, itemZ); }
-  game.__boulderDustAt -= dt; if (game.__boulderDustAt <= 0) { game.__boulderDustAt = .045; game.burst(new T.Vector3(boulder.position.x, game.groundY + .08, z - BOULDER_RADIUS * .8), true, 3); }
+  for (const item of [...items]) {
+    if (!item || item.lane !== lane) continue;
+    const type = item.type;
+    if (!BREAKABLE.has(type) && !COLLECTIBLES.has(type)) continue;
+    const itemZ = Number(item.mesh?.position?.z);
+    if (!Number.isFinite(itemZ)) continue;
+    if (itemZ >= prevZ - 1.2 && itemZ <= z + BOULDER_HIT_REACH) destroyAt(game, lane, itemZ);
+  }
+  game.__boulderDustAt -= dt;
+  if (game.__boulderDustAt <= 0) { game.__boulderDustAt = .045; game.burst(new T.Vector3(boulder.position.x, game.groundY + .08, z - BOULDER_RADIUS * .8), true, 3); }
   if (z > 15) { boulder.visible = false; game.__boulderActive = false; game.__boulderNextAt = game.stats.time + BOULDER_INTERVAL; }
 }
 
