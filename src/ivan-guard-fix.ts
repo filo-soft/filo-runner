@@ -55,6 +55,25 @@ const copyRunningPose = (game: IvanGame) => { const root = game.__ivanGuardRoot;
 const setIvanState = (game: IvanGame, state: IvanState) => { game.__ivanGuardState = state; if (state === 'hidden') { if (game.__ivanGuardRoot) game.__ivanGuardRoot.visible = false; game.__ivanGuardGap = IVAN_START_GAP; game.__ivanGuardFovTarget = IVAN_FOV_NORMAL; return; } if (game.__ivanGuardRoot) game.__ivanGuardRoot.visible = true; game.__ivanGuardFovTarget = IVAN_FOV_IVAN; };
 const showIntroIvan = (game: IvanGame) => { cloneBlueGuard(game); if (!game.__ivanGuardRoot) return; game.__ivanIntroRemaining = IVAN_INTRO_SECONDS; game.__ivanGuardGap = IVAN_START_GAP; game.__ivanGuardLaneX = (game as any).runner.position.x; game.__ivanGuardRoot.position.set(game.__ivanGuardLaneX, (game as any).groundY, PLAYER_Z + IVAN_START_GAP); setIvanState(game, 'retreat'); };
 const showHitIvan = (game: IvanGame) => { cloneBlueGuard(game); if (!game.__ivanGuardRoot) return; game.__ivanIntroRemaining = IVAN_POST_HIT_VISIBLE_SECONDS; game.__ivanGuardGap = IVAN_START_GAP; game.__ivanGuardLaneX = (game as any).runner.position.x; game.__ivanGuardRoot.position.set(game.__ivanGuardLaneX, (game as any).groundY, PLAYER_Z + IVAN_START_GAP); setIvanState(game, 'retreat'); };
+const smashObstaclesForIvan = (game: IvanGame) => {
+  const root = game.__ivanGuardRoot;
+  if (!root) return;
+  const items = ((game as any).items || []) as any[];
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    if (!item || item.__ivanSmashed || item.type === 'coin') continue;
+    const z = Number(item.mesh?.position?.z);
+    const x = Number(item.mesh?.position?.x);
+    if (!Number.isFinite(z) || !Number.isFinite(x)) continue;
+    if (Math.abs(z - root.position.z) > 1.05 || Math.abs(x - root.position.x) >= 1.15) continue;
+    item.__ivanSmashed = true;
+    const pos = item.mesh.position.clone();
+    pos.y += item.type === 'arch' ? 1.1 : .35;
+    (game as any).burst(pos, true, item.type === 'wall' ? 18 : 14);
+    (game as any).recycle(item);
+    items.splice(i, 1);
+  }
+};
 const updateIvan = (game: IvanGame, dt: number) => {
   const root = game.__ivanGuardRoot; const player = (game as any).runner as T.Group; if (!root || !player || game.mode !== 'playing') return;
   const state = game.__ivanGuardState || 'hidden'; if (state === 'hidden') return; copyRunningPose(game);
@@ -64,6 +83,7 @@ const updateIvan = (game: IvanGame, dt: number) => {
   else if (state === 'chase') { game.__ivanGuardGap = Math.max(IVAN_CATCH_GAP, gap - IVAN_CHASE_SPEED * dt); if (game.__ivanGuardGap <= IVAN_CATCH_GAP) { root.visible = false; (game as any).die(); return; } }
   const desiredX = player.position.x; const currentX = game.__ivanGuardLaneX ?? desiredX; const response = state === 'chase' ? IVAN_LANE_RESPONSE * 1.6 : IVAN_LANE_RESPONSE; game.__ivanGuardLaneX = T.MathUtils.damp(currentX, desiredX, response, dt);
   const targetZ = player.position.z + game.__ivanGuardGap; root.position.x = game.__ivanGuardLaneX; root.position.y = (game as any).groundY; root.position.z = T.MathUtils.damp(root.position.z, targetZ, IVAN_CAMERA_RESPONSE, dt); root.visible = true;
+  smashObstaclesForIvan(game);
   const camera = (game as any).camera as T.PerspectiveCamera; const targetFov = game.__ivanGuardFovTarget ?? IVAN_FOV_IVAN; camera.fov = T.MathUtils.damp(camera.fov, targetFov, IVAN_CAMERA_RESPONSE, dt); camera.updateProjectionMatrix();
 };
 proto.start = function () { previousStart.call(this); const game = this as IvanGame; game.__ivanRealHits = 0; cloneBlueGuard(game); showIntroIvan(game); const camera = (game as any).camera as T.PerspectiveCamera; camera.fov = IVAN_FOV_NORMAL; camera.updateProjectionMatrix(); };
