@@ -4,7 +4,6 @@ import { RunnerGame } from './game';
 
 const proto = RunnerGame.prototype as any;
 const originalBuildPrototypes = proto.buildPrototypes;
-const originalBuildWorld = proto.buildWorld;
 
 const logoTexture = (() => {
   const texture = new T.Texture();
@@ -46,23 +45,11 @@ const addGreekRelief = (gate: T.Group) => {
   gate.userData.greekRoofRelief = true;
 };
 
-const addDistantTempleLogo = (temple: T.Group) => {
-  if (temple.userData.zheleznoFacadeLogo) return;
-  const sign = makePanel(7.1, 1.02);
-  sign.name = 'ZheleznoDistantTempleRoofLogo';
-  sign.position.set(0, 10.55, 3.18);
-  temple.add(sign);
-  temple.userData.zheleznoFacadeLogo = true;
-};
-
 proto.buildPrototypes = function () {
   originalBuildPrototypes.call(this);
   const gate = this.prototypes.get('gate') as T.Group | undefined;
   if (gate) addGreekRelief(gate);
 };
 
-proto.buildWorld = function () {
-  originalBuildWorld.call(this);
-  const temple = this.templeGroup as T.Group | undefined;
-  if (temple) addDistantTempleLogo(temple);
-};
+// The ZHELEZNO branding remains on the houses. Only the distant temple/horizon building
+// is intentionally left without that logo.
