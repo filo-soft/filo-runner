@@ -26,6 +26,7 @@ const IVAN_FOV_IVAN = 54;
 const IVAN_CAMERA_RESPONSE = 7;
 const IVAN_LANE_RESPONSE = 9;
 const IVAN_X_OFFSET = 0.18;
+const PHILOSOPHER_CLOTH_HEX = 0xe2ddcf;
 
 const findRecoverableHit = (game: any, checkedBefore: Set<any>) => {
   const items = (game.items || []) as any[];
@@ -57,7 +58,7 @@ const cloneBlueGuard = (game: IvanGame) => {
   const guardMeshes: T.Mesh[] = [];
   root.traverse((o: T.Object3D) => { const m = o as T.Mesh; if (m.isMesh) guardMeshes.push(m); });
 
-  // The original philosopher's wreath is the only green material. Remove it completely.
+  // The original philosopher's wreath uses the unique green material. Remove only those meshes.
   for (const mesh of guardMeshes) {
     const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const green = mats.some((mat: any) => {
@@ -72,13 +73,11 @@ const cloneBlueGuard = (game: IvanGame) => {
       continue;
     }
 
-    // The himation is the existing light cloth material; recolor only that material.
+    // Recolor the philosopher's himation only. The marble body/head remain marble.
     const next = mats.map((mat: any) => {
       const color = mat?.color;
       if (!color) return mat;
-      const hsl = { h: 0, s: 0, l: 0 };
-      color.getHSL(hsl);
-      if (hsl.s < .12 && hsl.l > .78 && hsl.l < .95) return blue.clone();
+      if (color.getHex() === PHILOSOPHER_CLOTH_HEX) return blue.clone();
       return mat.clone ? mat.clone() : mat;
     });
     mesh.material = Array.isArray(mesh.material) ? next : next[0];
