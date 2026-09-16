@@ -6,6 +6,7 @@ const BOULDER_INTERVAL = 90;
 const BOULDER_START_Z = -108;
 const BOULDER_SPEED_BONUS = 11;
 const BOULDER_RADIUS = 1.45;
+const BOULDER_MIN_VISIBLE_Z = -92;
 
 const makeMarbleTexture = () => {
   const canvas = document.createElement('canvas');
@@ -37,8 +38,9 @@ proto.buildPrototypes = function () {
   if (this.prototypes.has('boulder')) return;
 
   const boulder = new T.Group();
-  const marbleMap = makeMarbleTexture();
-  const marbleMat = new T.MeshStandardMaterial({ color: '#f1eee5', map: marbleMap, roughness: .38, metalness: .02 });
+  const marbleMat = new T.MeshStandardMaterial({
+    color: '#f1eee5', map: makeMarbleTexture(), roughness: .38, metalness: .02,
+  });
   const rock = new T.Mesh(new T.IcosahedronGeometry(BOULDER_RADIUS, 2), marbleMat);
   rock.scale.set(1, .92, 1.05);
   rock.castShadow = true;
@@ -79,7 +81,7 @@ function destroyOnBoulder(game: any, lane: number, z: number) {
     if (!item || item.lane !== lane) continue;
     const type = item.type;
     if (!['block', 'pillar', 'arch', 'wall', 'gate', 'coin', 'bonusCoin'].includes(type)) continue;
-    if (Math.abs(item.mesh.position.z - z) > 1.8) continue;
+    if (Math.abs(item.mesh.position.z - z) > 2.2) continue;
     const pos = item.mesh.position.clone();
     game.burst(pos, true, type === 'coin' || type === 'bonusCoin' ? 4 : 10);
     if (type !== 'coin' && type !== 'bonusCoin') game.burst(pos, true, 5);
@@ -97,6 +99,7 @@ proto.step = function (dt: number) {
     this.__boulderActive = false;
     this.__boulderNextAt = BOULDER_INTERVAL;
   }
+
   originalStep.call(this, dt);
   if (this.mode !== 'playing' || !boulder) return;
 
@@ -105,7 +108,11 @@ proto.step = function (dt: number) {
     this.__boulderLane = Math.floor(Math.random() * 3) - 1;
     this.__boulderZ = BOULDER_START_Z;
     boulder.visible = true;
-    boulder.position.set(this.__boulderLane * 2.2 + this.bendOff(this.__boulderZ), this.groundY + BOULDER_RADIUS - .05, this.__boulderZ);
+    boulder.position.set(
+      this.__boulderLane * 2.2 + this.bendOff(this.__boulderZ),
+      this.groundY + BOULDER_RADIUS - .05,
+      this.__boulderZ,
+    );
     boulder.rotation.set(0, 0, 0);
     this.onToast('КАТИТСЯ ВАЛУН!');
     this.tone(95, .45, 45, 'triangle');
@@ -117,25 +124,34 @@ proto.step = function (dt: number) {
   this.__boulderZ += speed * dt;
   const z = this.__boulderZ as number;
   const lane = this.__boulderLane as number;
+
+  // The boulder actually travels down the selected lane. Its forward movement is
+  // deliberately much more visible than its spin, so it cannot look stationary.
   boulder.position.x = lane * 2.2 + this.bendOff(z);
   boulder.position.y = this.groundY + BOULDER_RADIUS - .05;
   boulder.position.z = z;
   boulder.rotation.x -= speed * dt / BOULDER_RADIUS;
-  boulder.rotation.z += speed * dt * .08;
+  boulder.rotation.y += speed * dt / (BOULDER_RADIUS * .9);
+  boulder.rotation.z += speed * dt * .025;
 
   const items = (this.items || []) as any[];
-  for (const item of items) {
+  // Use the whole swept path between the previous and current boulder positions,
+  // not only the final position, so fast movement cannot skip obstacles.
+  for (const item of [...items]) {
     if (!item || item.lane !== lane) continue;
     const type = item.type;
     if (!['block', 'pillar', 'arch', 'wall', 'gate', 'coin', 'bonusCoin'].includes(type)) continue;
     const itemZ = Number(item.mesh?.position?.z);
     if (!Number.isFinite(itemZ)) continue;
-    const crossed = prevZ <= itemZ && z >= itemZ;
-    if (crossed || Math.abs(itemZ - z) < 1.25) destroyOnBoulder(this, lane, z);
+    const crossed = prevZ <= itemZ && itemZ <= z;
+    if (crossed || Math.abs(itemZ - z) < 1.35) destroyOnBoulder(this, lane, itemZ);
   }
+
   if (z > 16) {
     boulder.visible = false;
     this.__boulderActive = false;
     this.__boulderNextAt = this.stats.time + BOULDER_INTERVAL;
+  } else if (z >= BOULDER_MIN_VISIBLE_Z) {
+    boulder.visible = true;
   }
 };
