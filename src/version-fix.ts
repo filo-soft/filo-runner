@@ -1,4 +1,4 @@
-const GAME_VERSION = 'v0.26';
+const GAME_VERSION = 'v0.27';
 
 const mountVersion = () => {
   const intro = document.querySelector('.intro');
