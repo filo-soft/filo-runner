@@ -6,9 +6,9 @@ const ORIGINALS = {
   start: proto.start,
   step: proto.step,
   die: proto.die,
-  spawn: proto.spawn,
 };
 const BONUS_DURATION = 15;
+const BONUS_START_TIME = 180;
 
 type BonusType = 'magnet' | 'shield';
 
@@ -47,12 +47,62 @@ function makeBonusVisual(item: any, type: BonusType) {
   root.userData.bonusVisual = true;
 }
 
-function ensureBonusVisuals(game: any, before: Set<any>) {
-  for (const item of game.items as any[]) {
-    if (item.type !== 'bonusCoin' || before.has(item)) continue;
-    const type: BonusType = Math.random() < .5 ? 'magnet' : 'shield';
-    item.mesh.userData.bonusType = type;
-    makeBonusVisual(item, type);
+function removeItem(game: any, item: any) {
+  const index = game.items.indexOf(item);
+  if (index >= 0) {
+    game.recycle(item);
+    game.items.splice(index, 1);
+  }
+}
+
+function activateBonus(game: any, item: any) {
+  const state = ensureState(game);
+  const now = game.stats.time as number;
+  if (now < BONUS_START_TIME) {
+    removeItem(game, item);
+    return;
+  }
+
+  const type: BonusType = item.mesh.userData.bonusType === 'shield' ? 'shield' : 'magnet';
+  if (type === 'magnet') state.magnetUntil = now + BONUS_DURATION;
+  else state.shieldUntil = now + BONUS_DURATION;
+
+  game.onToast(type === 'magnet' ? 'Магнит активирован · 15 секунд' : 'Щит активирован · 15 секунд');
+  game.tone(type === 'magnet' ? 520 : 360, .15, type === 'magnet' ? 980 : 760);
+  game.burst(item.mesh.position, false, 14);
+  removeItem(game, item);
+}
+
+function prepareBonusItems(game: any) {
+  const now = game.stats.time as number;
+  for (let i = game.items.length - 1; i >= 0; i--) {
+    const item = game.items[i];
+    if (item.type !== 'bonusCoin') continue;
+
+    // Absolute safety net: a bonus can never exist visually or functionally before 3 minutes.
+    if (now < BONUS_START_TIME) {
+      removeItem(game, item);
+      continue;
+    }
+
+    item.checked = true;
+    const type: BonusType = item.mesh.userData.bonusType === 'shield' ? 'shield' : 'magnet';
+    if (!item.mesh.userData.bonusVisual) makeBonusVisual(item, type);
+  }
+}
+
+function collectBonusesBeforeCollision(game: any) {
+  if ((game.stats.time as number) < BONUS_START_TIME) return;
+  for (let i = game.items.length - 1; i >= 0; i--) {
+    const item = game.items[i];
+    if (item.type !== 'bonusCoin') continue;
+    if (
+      Math.abs(item.mesh.position.z - 1.2) < .9 &&
+      Math.abs(item.mesh.position.x - game.runner.position.x) < .9 &&
+      Math.abs(item.mesh.position.y - (game.groundY + game.jump + .9)) < 1.2
+    ) {
+      activateBonus(game, item);
+    }
   }
 }
 
@@ -87,12 +137,6 @@ proto.start = function () {
   updateBonusHud(this, this.__bonusRamp);
 };
 
-proto.spawn = function () {
-  const before = new Set(this.items as any[]);
-  ORIGINALS.spawn.call(this);
-  ensureBonusVisuals(this, before);
-};
-
 proto.die = function () {
   const state = ensureState(this);
   if (state.shieldUntil > this.stats.time) {
@@ -107,29 +151,18 @@ proto.die = function () {
 
 proto.step = function (dt: number) {
   const state = ensureState(this);
+
+  // Handle bonus objects before the base collision loop so they can never be treated as obstacles.
+  prepareBonusItems(this);
+  collectBonusesBeforeCollision(this);
   ORIGINALS.step.call(this, dt);
   if (this.mode !== 'playing') return;
 
-  const now = this.stats.time as number;
-  for (let i = this.items.length - 1; i >= 0; i--) {
-    const item = this.items[i];
-    if (item.type !== 'bonusCoin') continue;
-    if (
-      Math.abs(item.mesh.position.z - 1.2) < .75 &&
-      Math.abs(item.mesh.position.x - this.runner.position.x) < .85 &&
-      Math.abs(item.mesh.position.y - (this.groundY + this.jump + .9)) < 1.15
-    ) {
-      const type: BonusType = item.mesh.userData.bonusType || (Math.random() < .5 ? 'magnet' : 'shield');
-      if (type === 'magnet') state.magnetUntil = now + BONUS_DURATION;
-      else state.shieldUntil = now + BONUS_DURATION;
-      this.onToast(type === 'magnet' ? 'Магнит активирован · 15 секунд' : 'Щит активирован · 15 секунд');
-      this.tone(type === 'magnet' ? 520 : 360, .15, type === 'magnet' ? 980 : 760);
-      this.burst(item.mesh.position, false, 14);
-      this.recycle(item);
-      this.items.splice(i, 1);
-    }
-  }
+  // The base step may have spawned a new bonus at the far end; prepare it immediately.
+  prepareBonusItems(this);
+  collectBonusesBeforeCollision(this);
 
+  const now = this.stats.time as number;
   if (state.magnetUntil > now) {
     for (let i = this.items.length - 1; i >= 0; i--) {
       const item = this.items[i];
