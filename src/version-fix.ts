@@ -1,4 +1,4 @@
-const GAME_VERSION = 'v0.27';
+const GAME_VERSION = 'v0.28';
 
 const mountVersion = () => {
   const intro = document.querySelector('.intro');
@@ -12,14 +12,16 @@ const mountVersion = () => {
 const style = document.createElement('style');
 style.textContent = `
 .game-version {
-  position: absolute;
-  left: 0;
-  bottom: -28px;
+  position: fixed;
+  left: 14px;
+  bottom: 10px;
+  z-index: 1000;
   font: 500 8px/1 Arial, Helvetica, sans-serif;
   letter-spacing: 1.8px;
   color: #9b9587;
   text-transform: uppercase;
   opacity: .9;
+  pointer-events: none;
 }
 `;
 document.head.appendChild(style);
