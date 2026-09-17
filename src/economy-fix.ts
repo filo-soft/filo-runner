@@ -50,8 +50,8 @@ style.textContent = `
     z-index: 12;
     display: none;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px 8px 8px;
+    gap: 10px;
+    padding: 9px 14px 9px 9px;
     border: 1px solid rgba(255,255,255,.28);
     border-radius: 999px;
     background: rgba(25,22,32,.62);
@@ -67,29 +67,29 @@ style.textContent = `
     position: relative;
     display: grid;
     place-items: center;
-    width: 27px;
-    height: 27px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     background: linear-gradient(135deg,#7565c8,#30258e);
     border: 2px solid #b8a5ea;
     box-shadow: 0 1px 0 #312372, inset 0 1px 2px rgba(255,255,255,.18);
     color: #cdc0ff;
-    font: 700 7px/1 Arial,sans-serif;
+    font: 700 10px/1 Arial,sans-serif;
     letter-spacing: -.8px;
   }
   .balance-coin:after {
     content: '';
     position: absolute;
-    inset: 3px;
+    inset: 4px;
     border: 1px solid rgba(205,192,255,.7);
     border-radius: 50%;
   }
   .balance-coin span { position: relative; z-index: 1; transform: translateY(-.5px); }
-  .balance-value { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .balance-value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
   @media (max-width: 680px) {
-    .balance-pill { right: 13px; bottom: 13px; padding: 6px 9px 6px 6px; gap: 6px; }
-    .balance-coin { width: 25px; height: 25px; }
-    .balance-value { font-size: 13px; }
+    .balance-pill { right: 13px; bottom: 13px; padding: 7px 11px 7px 7px; gap: 8px; }
+    .balance-coin { width: 36px; height: 36px; }
+    .balance-value { font-size: 15px; }
   }
 `;
 document.head.appendChild(style);
