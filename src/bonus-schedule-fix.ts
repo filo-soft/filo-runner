@@ -11,7 +11,7 @@ function activeBonus(game: any) {
   const state = game.__bonusRamp;
   if (!state) return false;
   const now = game.stats.time as number;
-  return state.magnetUntil > now || state.shieldUntil > now;
+  return state.magnetUntil > now || state.shieldUntil > now || (game.__shieldLockUntil || 0) > now;
 }
 
 function hasPowerupInWorld(game: any) {
@@ -28,10 +28,16 @@ function removeItem(game: any, item: any) {
 }
 
 function removeLegacyPowerups(game: any, beforeItems: Set<any>) {
-  // Only suppress legacy power-up items. Never delete stair ramps/obstacles here.
   for (let i = game.items.length - 1; i >= 0; i--) {
     const item = game.items[i];
     if (beforeItems.has(item)) continue;
+    if (item.type === 'bonusCoin' && item.mesh.userData.bonusType) removeItem(game, item);
+  }
+}
+
+function purgeAllPowerups(game: any) {
+  for (let i = game.items.length - 1; i >= 0; i--) {
+    const item = game.items[i];
     if (item.type === 'bonusCoin' && item.mesh.userData.bonusType) removeItem(game, item);
   }
 }
@@ -44,29 +50,26 @@ function scheduleWindow(game: any, windowIndex: number) {
   state.spawned = false;
 }
 
-function chooseStandaloneLane(game: any, z: number, fallback: number) {
+function findStandaloneLane(game: any, z: number) {
   const lanes = [-1, 0, 1];
-  const score = (lane: number) => {
-    let occupied = 0;
+  const free = lanes.filter((lane) => {
     for (const item of game.items as any[]) {
-      if (item.lane !== lane) continue;
-      const dz = Math.abs(item.mesh.position.z - z);
-      if (dz < 2.2 && item.type !== 'bonusCoin') occupied++;
+      if (item.type === 'bonusCoin' || item.lane !== lane) continue;
+      if (Math.abs(item.mesh.position.z - z) < 3.2) return false;
     }
-    return occupied;
-  };
-  lanes.sort((a, b) => score(a) - score(b));
-  return score(lanes[0]) === 0 ? lanes[0] : fallback;
+    return true;
+  });
+  return free.length ? free[Math.floor(Math.random() * free.length)] : null;
 }
 
 function trySpawnScheduledBonus(game: any, newCoins: any[], time: number) {
   const state = game.__bonusSchedule;
   if (!state || state.spawned || time < state.targetTime) return false;
 
-  // A power-up window is consumed if the player already has a bonus active.
-  // This prevents a second shield from appearing in a later spawn while the first is active.
+  // Absolute rule: while any bonus is active, this window cannot create a shield.
   if (activeBonus(game) || hasPowerupInWorld(game)) {
     state.spawned = true;
+    purgeAllPowerups(game);
     return false;
   }
 
@@ -76,13 +79,13 @@ function trySpawnScheduledBonus(game: any, newCoins: any[], time: number) {
   if (!target) return false;
 
   const z = target.mesh.position.z as number;
-  const y = target.mesh.position.y as number;
-  const lane = chooseStandaloneLane(game, z, target.lane as number);
+  const lane = findStandaloneLane(game, z);
+  // Never fall back onto an occupied lane. Wait for a later spawn in this same window.
+  if (lane === null) return false;
 
-  // Do NOT replace or recycle a blue coin. The shield is a separate item on an
-  // otherwise free lane, so it can never visually become part of a coin chain.
   const bonus = game.addItem('bonusCoin', lane, z);
-  bonus.mesh.position.y = Math.max(y, .9);
+  bonus.mesh.position.y = Math.max(target.mesh.position.y as number, .9);
+  bonus.lane = lane;
   bonus.laneX = lane * 2.2;
   bonus.mesh.position.x = bonus.laneX + game.bendOff(z);
   bonus.checked = true;
@@ -96,6 +99,7 @@ function trySpawnScheduledBonus(game: any, newCoins: any[], time: number) {
 proto.start = function () {
   originalStart.call(this);
   this.__bonusSchedule = {};
+  this.__shieldLockUntil = 0;
   scheduleWindow(this, 0);
 };
 
@@ -112,11 +116,14 @@ proto.spawn = function () {
 
   removeLegacyPowerups(this, beforeItems);
 
-  // Jump directly to the current window so crossing a boundary cannot process
-  // multiple windows and create multiple shields.
   if (time >= BONUS_START) {
     const currentIndex = Math.floor((time - BONUS_START) / BONUS_INTERVAL);
     if (currentIndex !== state.windowIndex) scheduleWindow(this, currentIndex);
+  }
+
+  if (activeBonus(this)) {
+    purgeAllPowerups(this);
+    return;
   }
 
   const newItems = (this.items as any[]).filter((item: any) => !beforeItems.has(item));
