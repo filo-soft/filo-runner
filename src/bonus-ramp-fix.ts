@@ -10,6 +10,9 @@ const ORIGINALS = {
 const BONUS_DURATION = 15;
 const BONUS_START_TIME = 180;
 const BALANCE_KEY = 'filo-balance';
+// Magnet remains implemented for later re-enable and developer testing,
+// but is disabled in normal gameplay for the stable balance.
+const MAGNET_ENABLED = false;
 
 type BonusType = 'magnet' | 'shield';
 
@@ -115,9 +118,11 @@ function keepBonusAboveRamp(game: any, item: any) {
 function activateBonus(game: any, item: any) {
   const state = ensureState(game);
   const now = game.stats.time as number;
-  if (now < BONUS_START_TIME || activeBonus(state, now)) return;
-
   const type: BonusType = item.mesh.userData.bonusType === 'shield' ? 'shield' : 'magnet';
+  // A magnet can still be spawned by developer test controls, but cannot activate
+  // in ordinary gameplay while the stable balance flag is disabled.
+  if (now < BONUS_START_TIME || activeBonus(state, now) || (type === 'magnet' && !MAGNET_ENABLED && !game.__godMode)) return;
+
   if (type === 'magnet') state.magnetUntil = now + BONUS_DURATION;
   else state.shieldUntil = now + BONUS_DURATION;
 
@@ -200,7 +205,7 @@ function updateBonusHud(game: any, state: any) {
   }
   const now = game.stats.time as number;
   const parts: string[] = [];
-  if (state.magnetUntil > now) parts.push(`<span class="bonus-badge"><i class="bonus-dot magnet"></i>МАГНИТ ${Math.ceil(state.magnetUntil-now)}с</span>`);
+  if (MAGNET_ENABLED && state.magnetUntil > now) parts.push(`<span class="bonus-badge"><i class="bonus-dot magnet"></i>МАГНИТ ${Math.ceil(state.magnetUntil-now)}с</span>`);
   if (state.shieldUntil > now) parts.push(`<span class="bonus-badge"><i class="bonus-dot shield"></i>ЩИТ ${Math.ceil(state.shieldUntil-now)}с</span>`);
   hud.innerHTML = parts.join('');
   hud.style.display = parts.length ? 'flex' : 'none';
@@ -244,7 +249,7 @@ proto.step = function (dt: number) {
   if (this.mode !== 'playing') return;
 
   const now = this.stats.time as number;
-  if (state.magnetUntil > now) {
+  if (state.magnetUntil > now && MAGNET_ENABLED) {
     for (let i = this.items.length - 1; i >= 0; i--) {
       const item = this.items[i];
       if (item.type !== 'coin') continue;
@@ -267,7 +272,7 @@ proto.step = function (dt: number) {
   }
 
   // Keep the pull persistent through the base game's per-frame lane-position update.
-  if (state.magnetUntil > now) {
+  if (state.magnetUntil > now && MAGNET_ENABLED) {
     for (const item of this.items as any[]) {
       if (item.type !== 'coin') continue;
       const dz = item.mesh.position.z - 1.2;
