@@ -38,7 +38,7 @@
 
 /* Mobile override must come last so it wins over the desktop rule above. */
 @media (max-width: 700px) {
-  .intro .start-button { transform: translateY(-80px); }
-  .intro .start-button:hover:not(:disabled) { transform: translateY(-82px); }
-  .intro .start-button:active:not(:disabled) { transform: translateY(-77px); }
+  .intro .start-button { transform: translateY(-40px); }
+  .intro .start-button:hover:not(:disabled) { transform: translateY(-42px); }
+  .intro .start-button:active:not(:disabled) { transform: translateY(-37px); }
 }
