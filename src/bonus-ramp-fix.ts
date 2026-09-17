@@ -12,10 +12,11 @@ type BonusType = 'magnet' | 'shield';
 function ensureState(game: any) {
   game.__bonusRamp = game.__bonusRamp || { magnetUntil: 0, shieldUntil: 0, nextPowerupType: 'magnet' };
   if (!game.__bonusRamp.nextPowerupType) game.__bonusRamp.nextPowerupType = 'magnet';
+  if (typeof game.__shieldLockUntil !== 'number') game.__shieldLockUntil = 0;
   return game.__bonusRamp;
 }
 function addPersistentCoins(amount: number) {
-  try { const current = Number(localStorage.getItem(BALANCE_KEY) || 0); localStorage.setItem(BALANCE_KEY, String(Math.max(0, Math.floor(current)) + amount)); } catch { /* local-only economy remains available */ }
+  try { const current = Number(localStorage.getItem(BALANCE_KEY) || 0); localStorage.setItem(BALANCE_KEY, String(Math.max(0, Math.floor(current)) + amount); } catch { /* local-only economy remains available */ }
 }
 function restoreOrangeVisual(game: any, item: any) {
   const root = item.mesh as T.Group;
@@ -46,7 +47,7 @@ function makeBonusVisual(item: any, type: BonusType) {
     const shield = new T.Mesh(new T.ExtrudeGeometry(shape, { depth: .13, bevelEnabled: true, bevelSize: .025, bevelThickness: .02, bevelSegments: 2 }), material);
     shield.position.z = -.065; root.add(shield);
   }
-  const aura = new T.Mesh(new T.SphereGeometry(.62, 16, 12), glow); root.add(aura);
+  root.add(new T.Mesh(new T.SphereGeometry(.62, 16, 12), glow));
   root.userData.bonusType = type; root.userData.bonusVisual = true; root.userData.bonusVisualType = type;
 }
 function removeItem(game: any, item: any) {
@@ -61,10 +62,13 @@ function removeQueuedPowerups(game: any) {
 }
 function purgePowerupsWhileActive(game: any) {
   const state = ensureState(game);
-  if (!activeBonus(state, game.stats.time as number)) return;
+  const now = game.stats.time as number;
+  if (!activeBonus(state, now)) return;
   removeQueuedPowerups(game);
 }
-function activeBonus(state: any, now: number) { return state.magnetUntil > now || state.shieldUntil > now; }
+function activeBonus(state: any, now: number) {
+  return state.magnetUntil > now || state.shieldUntil > now;
+}
 function rampSurfaceY(game: any, item: any) {
   const ramps = (game.items as any[]).filter((other: any) => other.type === 'ramp' || other.type === 'stairRamp');
   let surface = 0;
@@ -91,6 +95,7 @@ function activateBonus(game: any, item: any) {
   const type: BonusType = item.mesh.userData.bonusType === 'shield' ? 'shield' : 'magnet';
   if (now < BONUS_START_TIME || activeBonus(state, now) || (type === 'magnet' && !MAGNET_ENABLED && !game.__godMode)) return;
   if (type === 'magnet') state.magnetUntil = now + BONUS_DURATION; else state.shieldUntil = now + BONUS_DURATION;
+  if (type === 'shield') game.__shieldLockUntil = now + BONUS_DURATION;
   game.onToast(type === 'magnet' ? 'Магнит активирован · 15 секунд' : 'Щит активирован · 15 секунд');
   game.tone(type === 'magnet' ? 520 : 360, .15, type === 'magnet' ? 980 : 760);
   game.burst(item.mesh.position, false, 14); removeItem(game, item); removeQueuedPowerups(game);
@@ -103,6 +108,7 @@ function prepareBonusItems(game: any) {
     const type = item.mesh.userData.bonusType as BonusType | undefined;
     if (!type) { if (item.mesh.userData.bonusVisual) restoreOrangeVisual(game, item); item.checked = true; keepBonusAboveRamp(game, item); continue; }
     if (now < BONUS_START_TIME) { restoreOrangeVisual(game, item); item.checked = true; keepBonusAboveRamp(game, item); continue; }
+    if (activeBonus(ensureState(game), now) && item !== null) { removeItem(game, item); continue; }
     item.checked = true;
     if (!item.mesh.userData.bonusVisual || item.mesh.userData.bonusVisualType !== type) makeBonusVisual(item, type);
     keepBonusAboveRamp(game, item);
@@ -116,8 +122,6 @@ function collectBonusesBeforeCollision(game: any) {
     if (item.type !== 'bonusCoin' || !item.mesh.userData.bonusType) continue;
     const zClose = Math.abs(item.mesh.position.z - 1.2) < 2.0;
     const xClose = Math.abs(item.mesh.position.x - game.runner.position.x) < 1.45;
-    // Shield can sit on a stair/ramp above the runner; vertical distance is not
-    // used as a tight gate for pickup.
     const yClose = Math.abs(item.mesh.position.y - (game.groundY + game.jump + .9)) < 3.4;
     if (zClose && xClose && yClose) {
       if (activeBonus(state, game.stats.time as number)) { removeItem(game, item); continue; }
@@ -142,7 +146,7 @@ function updateBonusHud(game: any, state: any) {
   hud.innerHTML = parts.join(''); hud.style.display = parts.length ? 'flex' : 'none';
 }
 proto.start = function () {
-  ORIGINALS.start.call(this); this.__bonusRamp = { magnetUntil: 0, shieldUntil: 0, nextPowerupType: 'magnet' };
+  ORIGINALS.start.call(this); this.__bonusRamp = { magnetUntil: 0, shieldUntil: 0, nextPowerupType: 'magnet' }; this.__shieldLockUntil = 0;
   const originalToast = this.onToast;
   if (!(this as any).__coinToastFiltered) { this.onToast = (text: string) => { if (/^\d+ монет(?:\s|$)/.test(text)) return; originalToast.call(this, text); }; this.__coinToastFiltered = true; }
   updateBonusHud(this, this.__bonusRamp);
@@ -155,7 +159,9 @@ proto.die = function () {
 proto.step = function (dt: number) {
   const state = ensureState(this);
   purgePowerupsWhileActive(this);
-  prepareBonusItems(this); collectBonusesBeforeCollision(this); ORIGINALS.step.call(this, dt); prepareBonusItems(this); collectBonusesBeforeCollision(this);
+  prepareBonusItems(this); collectBonusesBeforeCollision(this); ORIGINALS.step.call(this, dt);
+  purgePowerupsWhileActive(this);
+  prepareBonusItems(this); collectBonusesBeforeCollision(this);
   if (this.mode !== 'playing') return;
   const now = this.stats.time as number;
   if (state.magnetUntil > now && MAGNET_ENABLED) {
