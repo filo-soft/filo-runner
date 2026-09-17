@@ -1,4 +1,4 @@
-const GAME_VERSION = 'v0.35';
+const GAME_VERSION = 'v0.36';
 
 const mountVersion = () => {
   const intro = document.querySelector('.intro');
@@ -33,17 +33,11 @@ style.textContent = `
   pointer-events: none;
   transition: opacity .15s ease;
 }
-.game-version[data-god-mode="on"] {
-  opacity: .9;
-  visibility: visible;
-}
+.game-version[data-god-mode="on"] { opacity: .9; visibility: visible; }
 `;
 document.head.appendChild(style);
 
 mountVersion();
 updateVersionVisibility();
-new MutationObserver(() => {
-  mountVersion();
-  updateVersionVisibility();
-}).observe(document.documentElement, { childList: true, subtree: true });
+new MutationObserver(() => { mountVersion(); updateVersionVisibility(); }).observe(document.documentElement, { childList: true, subtree: true });
 window.addEventListener('filo-god-mode-change', updateVersionVisibility);
