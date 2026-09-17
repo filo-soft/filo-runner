@@ -25,7 +25,7 @@ const ensureBalanceUi = () => {
   if (!pill) {
     pill = document.createElement('div');
     pill.className = 'balance-pill';
-    pill.innerHTML = '<span class="balance-coin" aria-hidden="true"><span>&lt;/&gt;</span></span><b class="balance-value"></b>';
+    pill.innerHTML = '<span class="balance-coin" aria-hidden="true"><svg class="balance-code-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg></span><b class="balance-value"></b>';
     stage.appendChild(pill);
   }
   const value = pill.querySelector('.balance-value') as HTMLElement | null;
@@ -74,22 +74,28 @@ style.textContent = `
     border: 2px solid #b8a5ea;
     box-shadow: 0 1px 0 #312372, inset 0 1px 2px rgba(255,255,255,.18);
     color: #cdc0ff;
-    font: 700 10px/1 Arial,sans-serif;
-    letter-spacing: -.8px;
   }
   .balance-coin:after {
     content: '';
     position: absolute;
-    inset: 4px;
+    inset: 3px;
     border: 1px solid rgba(205,192,255,.7);
     border-radius: 50%;
   }
-  .balance-coin span { position: relative; z-index: 1; transform: translateY(-.5px); }
-  .balance-value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .balance-code-icon {
+    position: relative;
+    z-index: 1;
+    width: 24px;
+    height: 24px;
+    display: block;
+    flex: 0 0 24px;
+  }
+  .balance-value { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
   @media (max-width: 680px) {
-    .balance-pill { right: 13px; bottom: 13px; padding: 7px 11px 7px 7px; gap: 8px; }
-    .balance-coin { width: 36px; height: 36px; }
-    .balance-value { font-size: 15px; }
+    .balance-pill { right: 13px; bottom: 13px; padding: 6px 9px 6px 6px; gap: 6px; }
+    .balance-coin { width: 38px; height: 38px; }
+    .balance-code-icon { width: 23px; height: 23px; flex-basis: 23px; }
+    .balance-value { font-size: 13px; }
   }
 `;
 document.head.appendChild(style);
@@ -156,8 +162,6 @@ proto.step = function (dt: number) {
   if (this.mode === 'playing') {
     for (let i = this.items.length - 1; i >= 0; i--) {
       const item = this.items[i];
-      // bonusCoin is the old orange +10 pickup only when it has no powerup type.
-      // Magnet/shield pickups are handled by bonus-ramp-fix and must never also grant +10.
       if (item.type !== 'bonusCoin' || item.mesh.userData.bonusType) continue;
       const z = item.mesh.position.z as number;
       if (Math.abs(z - 1.2) < .7 &&
