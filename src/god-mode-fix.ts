@@ -22,6 +22,7 @@ proto.toggleGodMode = function () {
     this.burst(this.runner.position.clone().setY(this.groundY + 1.05).setZ(1.2), false, 4);
   }
   this.shake = Math.max(this.shake || 0, .012);
+  window.dispatchEvent(new Event('filo-god-mode-change'));
   return this.__godMode;
 };
 
