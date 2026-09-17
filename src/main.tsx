@@ -29,6 +29,7 @@ import "./footer-fix";
 import "./version-fix";
 import "./ui-readability-fix";
 import "./coin-hud-fix";
+import "./visual-fix";
 import App from "./App";
 
 createRoot(document.getElementById("root")!).render(
