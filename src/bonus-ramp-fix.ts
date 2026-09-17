@@ -16,7 +16,7 @@ function ensureState(game: any) {
   return game.__bonusRamp;
 }
 function addPersistentCoins(amount: number) {
-  try { const current = Number(localStorage.getItem(BALANCE_KEY) || 0); localStorage.setItem(BALANCE_KEY, String(Math.max(0, Math.floor(current)) + amount); } catch { /* local-only economy remains available */ }
+  try { const current = Number(localStorage.getItem(BALANCE_KEY) || 0); localStorage.setItem(BALANCE_KEY, String(Math.max(0, Math.floor(current)) + amount)); } catch { /* local-only economy remains available */ }
 }
 function restoreOrangeVisual(game: any, item: any) {
   const root = item.mesh as T.Group;
