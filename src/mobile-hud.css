@@ -5,11 +5,6 @@
   .qr-float img { width: 120px; height: 120px; }
   .scene-top .round-button,
   .hud-right .round-button { width: 46px; height: 46px; }
-
-  /* Mobile: lift the start button 20px above its previous mobile position. */
-  .intro .start-button { transform: translateY(-54px); }
-  .intro .start-button:hover:not(:disabled) { transform: translateY(-56px); }
-  .intro .start-button:active:not(:disabled) { transform: translateY(-51px); }
 }
 
 .touch-controls,
@@ -39,4 +34,11 @@
   .hud-time b { font-size: 15px; }
   .over-actions { gap: 8px; }
   .over-actions .secondary { font-size: 8px; padding: 0 8px; }
+}
+
+/* Mobile override must come last so it wins over the desktop rule above. */
+@media (max-width: 700px) {
+  .intro .start-button { transform: translateY(-80px); }
+  .intro .start-button:hover:not(:disabled) { transform: translateY(-82px); }
+  .intro .start-button:active:not(:disabled) { transform: translateY(-77px); }
 }
