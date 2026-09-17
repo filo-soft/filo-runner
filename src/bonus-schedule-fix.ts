@@ -28,13 +28,11 @@ function removeItem(game: any, item: any) {
 }
 
 function removeLegacyPowerups(game: any, beforeItems: Set<any>) {
-  // The schedule is the only normal source of shields. Remove powerups produced
-  // by older layers during this spawn, but never touch ordinary orange +10 coins.
+  // Only suppress legacy power-up items. Never delete stair ramps/obstacles here.
   for (let i = game.items.length - 1; i >= 0; i--) {
     const item = game.items[i];
     if (beforeItems.has(item)) continue;
     if (item.type === 'bonusCoin' && item.mesh.userData.bonusType) removeItem(game, item);
-    else if (item.type === 'stairRamp') removeItem(game, item);
   }
 }
 
@@ -42,29 +40,49 @@ function scheduleWindow(game: any, windowIndex: number) {
   const state = game.__bonusSchedule;
   state.windowIndex = windowIndex;
   state.windowStart = BONUS_START + windowIndex * BONUS_INTERVAL;
-  // Exactly one random target time in this 90-second window.
   state.targetTime = state.windowStart + Math.random() * BONUS_INTERVAL;
   state.spawned = false;
+}
+
+function chooseStandaloneLane(game: any, z: number, fallback: number) {
+  const lanes = [-1, 0, 1];
+  const score = (lane: number) => {
+    let occupied = 0;
+    for (const item of game.items as any[]) {
+      if (item.lane !== lane) continue;
+      const dz = Math.abs(item.mesh.position.z - z);
+      if (dz < 2.2 && item.type !== 'bonusCoin') occupied++;
+    }
+    return occupied;
+  };
+  lanes.sort((a, b) => score(a) - score(b));
+  return score(lanes[0]) === 0 ? lanes[0] : fallback;
 }
 
 function trySpawnScheduledBonus(game: any, newCoins: any[], time: number) {
   const state = game.__bonusSchedule;
   if (!state || state.spawned || time < state.targetTime) return false;
-  if (activeBonus(game) || hasPowerupInWorld(game)) return false;
 
-  const candidates = newCoins.filter((item: any) => item.type === 'coin');
-  const target = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
+  // A power-up window is consumed if the player already has a bonus active.
+  // This prevents a second shield from appearing in a later spawn while the first is active.
+  if (activeBonus(game) || hasPowerupInWorld(game)) {
+    state.spawned = true;
+    return false;
+  }
+
+  const target = newCoins.length
+    ? newCoins[Math.floor(Math.random() * newCoins.length)]
+    : null;
   if (!target) return false;
 
-  const lane = target.lane as number;
   const z = target.mesh.position.z as number;
   const y = target.mesh.position.y as number;
-  game.recycle(target);
-  const index = game.items.indexOf(target);
-  if (index >= 0) game.items.splice(index, 1);
+  const lane = chooseStandaloneLane(game, z, target.lane as number);
 
+  // Do NOT replace or recycle a blue coin. The shield is a separate item on an
+  // otherwise free lane, so it can never visually become part of a coin chain.
   const bonus = game.addItem('bonusCoin', lane, z);
-  bonus.mesh.position.y = y;
+  bonus.mesh.position.y = Math.max(y, .9);
   bonus.laneX = lane * 2.2;
   bonus.mesh.position.x = bonus.laneX + game.bendOff(z);
   bonus.checked = true;
@@ -94,8 +112,8 @@ proto.spawn = function () {
 
   removeLegacyPowerups(this, beforeItems);
 
-  // Advance directly to the current 90-second window. This prevents the old
-  // boundary bug where crossing a window could spawn two shields in one spawn().
+  // Jump directly to the current window so crossing a boundary cannot process
+  // multiple windows and create multiple shields.
   if (time >= BONUS_START) {
     const currentIndex = Math.floor((time - BONUS_START) / BONUS_INTERVAL);
     if (currentIndex !== state.windowIndex) scheduleWindow(this, currentIndex);
