@@ -59,6 +59,11 @@ function removeQueuedPowerups(game: any) {
     if (item.type === 'bonusCoin' && item.mesh.userData.bonusType) removeItem(game, item);
   }
 }
+function purgePowerupsWhileActive(game: any) {
+  const state = ensureState(game);
+  if (!activeBonus(state, game.stats.time as number)) return;
+  removeQueuedPowerups(game);
+}
 function activeBonus(state: any, now: number) { return state.magnetUntil > now || state.shieldUntil > now; }
 function rampSurfaceY(game: any, item: any) {
   const ramps = (game.items as any[]).filter((other: any) => other.type === 'ramp' || other.type === 'stairRamp');
@@ -109,9 +114,11 @@ function collectBonusesBeforeCollision(game: any) {
   for (let i = game.items.length - 1; i >= 0; i--) {
     const item = game.items[i];
     if (item.type !== 'bonusCoin' || !item.mesh.userData.bonusType) continue;
-    const zClose = Math.abs(item.mesh.position.z - 1.2) < 1.8;
-    const xClose = Math.abs(item.mesh.position.x - game.runner.position.x) < 1.35;
-    const yClose = Math.abs(item.mesh.position.y - (game.groundY + game.jump + .9)) < 2.2;
+    const zClose = Math.abs(item.mesh.position.z - 1.2) < 2.0;
+    const xClose = Math.abs(item.mesh.position.x - game.runner.position.x) < 1.45;
+    // Shield can sit on a stair/ramp above the runner; vertical distance is not
+    // used as a tight gate for pickup.
+    const yClose = Math.abs(item.mesh.position.y - (game.groundY + game.jump + .9)) < 3.4;
     if (zClose && xClose && yClose) {
       if (activeBonus(state, game.stats.time as number)) { removeItem(game, item); continue; }
       activateBonus(game, item); break;
@@ -147,6 +154,7 @@ proto.die = function () {
 };
 proto.step = function (dt: number) {
   const state = ensureState(this);
+  purgePowerupsWhileActive(this);
   prepareBonusItems(this); collectBonusesBeforeCollision(this); ORIGINALS.step.call(this, dt); prepareBonusItems(this); collectBonusesBeforeCollision(this);
   if (this.mode !== 'playing') return;
   const now = this.stats.time as number;
