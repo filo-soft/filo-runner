@@ -28,8 +28,8 @@ function removeItem(game: any, item: any) {
 }
 
 function removeLegacyPowerups(game: any, beforeItems: Set<any>) {
-  // late-game-fix still owns the old random/stair implementation. Remove only
-  // powerup objects created by that layer during this spawn, leaving orange +10 coins untouched.
+  // The schedule is the only normal source of shields. Remove powerups produced
+  // by older layers during this spawn, but never touch ordinary orange +10 coins.
   for (let i = game.items.length - 1; i >= 0; i--) {
     const item = game.items[i];
     if (beforeItems.has(item)) continue;
@@ -38,23 +38,23 @@ function removeLegacyPowerups(game: any, beforeItems: Set<any>) {
   }
 }
 
-function scheduleNextWindow(game: any, windowStart: number) {
+function scheduleWindow(game: any, windowIndex: number) {
   const state = game.__bonusSchedule;
-  state.windowStart = windowStart;
-  state.windowEnd = windowStart + BONUS_INTERVAL;
-  // Exactly one random moment inside every 90-second window.
-  state.targetTime = windowStart + Math.random() * BONUS_INTERVAL;
+  state.windowIndex = windowIndex;
+  state.windowStart = BONUS_START + windowIndex * BONUS_INTERVAL;
+  // Exactly one random target time in this 90-second window.
+  state.targetTime = state.windowStart + Math.random() * BONUS_INTERVAL;
   state.spawned = false;
 }
 
 function trySpawnScheduledBonus(game: any, newCoins: any[], time: number) {
   const state = game.__bonusSchedule;
-  if (!state || time < BONUS_START || state.spawned || time < state.targetTime) return;
-  if (activeBonus(game) || hasPowerupInWorld(game)) return;
+  if (!state || state.spawned || time < state.targetTime) return false;
+  if (activeBonus(game) || hasPowerupInWorld(game)) return false;
 
   const candidates = newCoins.filter((item: any) => item.type === 'coin');
   const target = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
-  if (!target) return;
+  if (!target) return false;
 
   const lane = target.lane as number;
   const z = target.mesh.position.z as number;
@@ -72,12 +72,13 @@ function trySpawnScheduledBonus(game: any, newCoins: any[], time: number) {
   delete bonus.mesh.userData.bonusVisual;
   bonus.mesh.userData.bonusType = 'shield';
   state.spawned = true;
+  return true;
 }
 
 proto.start = function () {
   originalStart.call(this);
   this.__bonusSchedule = {};
-  scheduleNextWindow(this, BONUS_START);
+  scheduleWindow(this, 0);
 };
 
 proto.spawn = function () {
@@ -86,21 +87,21 @@ proto.spawn = function () {
   originalSpawn.call(this);
 
   const state = this.__bonusSchedule || (this.__bonusSchedule = {});
-  if (typeof state.windowStart !== 'number') scheduleNextWindow(this, BONUS_START);
+  if (typeof state.windowIndex !== 'number') {
+    const initialIndex = time < BONUS_START ? 0 : Math.floor((time - BONUS_START) / BONUS_INTERVAL);
+    scheduleWindow(this, initialIndex);
+  }
 
-  // Disable both previous random mechanisms so this schedule is the only normal
-  // source of shields after 3:00.
   removeLegacyPowerups(this, beforeItems);
+
+  // Advance directly to the current 90-second window. This prevents the old
+  // boundary bug where crossing a window could spawn two shields in one spawn().
+  if (time >= BONUS_START) {
+    const currentIndex = Math.floor((time - BONUS_START) / BONUS_INTERVAL);
+    if (currentIndex !== state.windowIndex) scheduleWindow(this, currentIndex);
+  }
 
   const newItems = (this.items as any[]).filter((item: any) => !beforeItems.has(item));
   const newCoins = newItems.filter((item: any) => item.type === 'coin');
   trySpawnScheduledBonus(this, newCoins, time);
-
-  // If this 90-second window was completed, advance to the next one. A blocked
-  // window is intentionally skipped rather than producing a delayed double spawn.
-  if (time >= state.windowEnd) {
-    const nextStart = state.windowEnd;
-    scheduleNextWindow(this, nextStart);
-    if (time >= state.targetTime) trySpawnScheduledBonus(this, newCoins, time);
-  }
 };
