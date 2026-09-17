@@ -6,10 +6,10 @@
   .scene-top .round-button,
   .hud-right .round-button { width: 46px; height: 46px; }
 
-  /* Keep the start button clear of the bottom total-coin score panel. */
-  .intro .start-button { transform: translateY(-34px); }
-  .intro .start-button:hover:not(:disabled) { transform: translateY(-36px); }
-  .intro .start-button:active:not(:disabled) { transform: translateY(-31px); }
+  /* Mobile: lift the start button 20px above its previous mobile position. */
+  .intro .start-button { transform: translateY(-54px); }
+  .intro .start-button:hover:not(:disabled) { transform: translateY(-56px); }
+  .intro .start-button:active:not(:disabled) { transform: translateY(-51px); }
 }
 
 .touch-controls,
