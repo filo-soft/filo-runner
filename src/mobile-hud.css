@@ -5,6 +5,11 @@
   .qr-float img { width: 120px; height: 120px; }
   .scene-top .round-button,
   .hud-right .round-button { width: 46px; height: 46px; }
+
+  /* Keep the start button clear of the bottom total-coin score panel. */
+  .intro .start-button { transform: translateY(-34px); }
+  .intro .start-button:hover:not(:disabled) { transform: translateY(-36px); }
+  .intro .start-button:active:not(:disabled) { transform: translateY(-31px); }
 }
 
 .touch-controls,
