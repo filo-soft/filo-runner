@@ -10,7 +10,10 @@ const originalSupportAt = proto.supportAt;
 const originalControl = proto.control;
 
 const BONUS_START_TIME = 180;
-const BONUS_CHANCE = .01;
+// spawn() runs roughly every 2 seconds, so 1% per spawn was much more frequent
+// than it looked. 0.2% per spawn gives a genuinely rare roll.
+const BONUS_CHANCE = .002;
+const BONUS_COOLDOWN = 30;
 // Magnet remains implemented for a later re-enable and developer test mode,
 // but is intentionally excluded from normal gameplay in the stable balance.
 const MAGNET_ENABLED = false;
@@ -81,7 +84,7 @@ const hasPowerupInWorld = function (game: any) {
 };
 
 const nextPowerupType = function (game: any) {
-  game.__bonusRamp = game.__bonusRamp || { magnetUntil: 0, shieldUntil: 0, nextPowerupType: 'magnet' };
+  game.__bonusRamp = game.__bonusRamp || { magnetUntil: 0, shieldUntil: 0, nextPowerupType: 'magnet', powerupCooldownUntil: 0 };
   if (!MAGNET_ENABLED) {
     // Preserve the old alternating state so re-enabling the magnet later is trivial,
     // but route every normal powerup spawn to the shield while magnet is disabled.
@@ -137,13 +140,27 @@ proto.spawn = function () {
   const beforeItems = new Set((this.items as any[]));
   originalSpawn.call(this);
 
-  // Powerups are a genuinely rare 1% slot, and only one powerup may exist in the world at once.
-  if (Math.random() < BONUS_CHANCE && time >= BONUS_START_TIME && !activeBonus(this) && !hasPowerupInWorld(this)) {
+  const state = this.__bonusRamp || { magnetUntil: 0, shieldUntil: 0, nextPowerupType: 'magnet', powerupCooldownUntil: 0 };
+  this.__bonusRamp = state;
+  if (typeof state.powerupCooldownUntil !== 'number') state.powerupCooldownUntil = 0;
+
+  // Do not even roll the random chance while a bonus is active or another powerup
+  // is already in the world. The cooldown also prevents lucky consecutive rolls.
+  if (
+    time >= BONUS_START_TIME &&
+    !activeBonus(this) &&
+    !hasPowerupInWorld(this) &&
+    time >= state.powerupCooldownUntil &&
+    Math.random() < BONUS_CHANCE
+  ) {
     const newCoins = (this.items as any[]).filter((item: any) =>
       !beforeItems.has(item) && item.type === 'coin'
     );
     const target = newCoins[newCoins.length - 1];
-    if (target) replaceBlueCoin.call(this, target, true);
+    if (target) {
+      replaceBlueCoin.call(this, target, true);
+      state.powerupCooldownUntil = time + BONUS_COOLDOWN;
+    }
   }
 
   if (distance >= 9000 && completedRow >= 1 && completedRow % 3 === 0 && completedRow % 7 !== 0) {
@@ -160,7 +177,7 @@ proto.spawn = function () {
   }
 
   // The late stair powerup is also rare and cannot coexist with another powerup.
-  if (distance >= 8000 && time >= BONUS_START_TIME && completedRow >= 1 && completedRow % 31 === 0 && !activeBonus(this) && !hasPowerupInWorld(this)) {
+  if (distance >= 8000 && time >= BONUS_START_TIME && completedRow >= 1 && completedRow % 31 === 0 && !activeBonus(this) && !hasPowerupInWorld(this) && time >= state.powerupCooldownUntil) {
     const lane = (((completedRow + 1) % 3) - 1) as number;
     this.addItem('stairRamp', lane, -103);
     const coin = this.addItem('bonusCoin', lane, -104.25);
@@ -171,6 +188,7 @@ proto.spawn = function () {
     coin.mesh.userData.bonusPhase = 'powerup';
     delete coin.mesh.userData.bonusVisual;
     coin.mesh.userData.bonusType = nextPowerupType(this);
+    state.powerupCooldownUntil = time + BONUS_COOLDOWN;
   }
 
   sanitizeCoins.call(this);
@@ -179,7 +197,7 @@ proto.spawn = function () {
 proto.start = function () {
   originalStart.call(this);
   this.__coinReady = false;
-  this.__bonusRamp = { magnetUntil: 0, shieldUntil: 0, nextPowerupType: 'magnet' };
+  this.__bonusRamp = { magnetUntil: 0, shieldUntil: 0, nextPowerupType: 'magnet', powerupCooldownUntil: 0 };
   setCoinReady(false);
 };
 
