@@ -79,12 +79,13 @@ const addFilmGrain = () => {
   const grain = document.createElement("div");
   grain.className = "filo-film-grain";
   Object.assign(grain.style, {
-    position: "fixed", inset: "0", zIndex: "40", pointerEvents: "none",
-    opacity: "0.035", mixBlendMode: "soft-light",
-    backgroundImage: "radial-gradient(circle at 17% 23%, rgba(255,255,255,.55) 0 1px, transparent 1.5px), radial-gradient(circle at 71% 68%, rgba(0,0,0,.45) 0 1px, transparent 1.5px), radial-gradient(circle at 43% 84%, rgba(255,255,255,.35) 0 1px, transparent 1.3px)",
-    backgroundSize: "3px 3px, 5px 5px, 7px 7px"
+    position: "fixed", inset: "0", zIndex: "2147483647", pointerEvents: "none",
+    opacity: "0.045", mixBlendMode: "soft-light",
+    backgroundImage: "radial-gradient(circle at 17% 23%, rgba(255,255,255,.7) 0 1px, transparent 1.5px), radial-gradient(circle at 71% 68%, rgba(0,0,0,.55) 0 1px, transparent 1.5px), radial-gradient(circle at 43% 84%, rgba(255,255,255,.45) 0 1px, transparent 1.3px)",
+    backgroundSize: "3px 3px, 5px 5px, 7px 7px",
+    animation: "filo-grain-shift .18s steps(2,end) infinite"
   });
-  document.body.appendChild(grain);
+  if (!document.getElementById("filo-grain-style")) { const style = document.createElement("style"); style.id = "filo-grain-style"; style.textContent = "@keyframes filo-grain-shift{0%{transform:translate(0,0)}25%{transform:translate(-1px,1px)}50%{transform:translate(1px,-1px)}75%{transform:translate(1px,1px)}100%{transform:translate(0,0)}}"; document.head.appendChild(style); }\n  document.body.appendChild(grain);
 };
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", addFilmGrain, { once: true });
 else addFilmGrain();
