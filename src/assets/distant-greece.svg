@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="2048" height="1152" viewBox="0 0 2048 1152">
 <defs>
- <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#4f92d1"/><stop offset=".55" stop-color="#a9d3ec"/><stop offset="1" stop-color="#e8d8bd"/></linearGradient>
+ <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#4b43a2"/><stop offset=".48" stop-color="#7770c2"/><stop offset=".78" stop-color="#a9a5d9"/><stop offset="1" stop-color="#ddd9ea"/></linearGradient>
  <linearGradient id="mount" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#738da5"/><stop offset="1" stop-color="#3d5669"/></linearGradient>
  <linearGradient id="island" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#a9a994"/><stop offset="1" stop-color="#55675f"/></linearGradient>
  <filter id="blur"><feGaussianBlur stdDeviation="18"/></filter>
