@@ -44,6 +44,7 @@ const makeCloud = (scene: T.Scene, index: number): Cloud => {
 const addSky = (game: any) => {
   if (game.__skyBackground) return;
   const scene = game.scene as T.Scene;
+  scene.background = new T.Color("#8fc4df");
   const texture = new T.TextureLoader().load(distantBackground);
   texture.colorSpace = T.SRGBColorSpace;
   texture.anisotropy = 4;
