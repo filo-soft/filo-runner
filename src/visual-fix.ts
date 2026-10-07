@@ -57,8 +57,9 @@ function prepareScene(scene: T.Scene) {
   if (preparedScenes.has(scene)) return;
   preparedScenes.add(scene);
 
-  scene.background = makeSkyTexture();
-  scene.fog = new T.FogExp2("#c9baa4", 0.0095);
+  // Keep the game sky blue. This pass used to overwrite the real sky with a dark graded texture.
+  scene.background = new T.Color("#8fc4df");
+  scene.fog = new T.FogExp2("#b9d7e3", 0.0095);
 
   const lights = scene.children.filter(o => o instanceof T.Light);
   let hemi = lights.find(o => o instanceof T.HemisphereLight) as T.HemisphereLight | undefined;
