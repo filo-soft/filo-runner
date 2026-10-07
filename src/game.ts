@@ -80,7 +80,7 @@ export class RunnerGame {
     this.renderer.toneMappingExposure = 1.2;
     this.renderer.domElement.setAttribute('aria-label', 'Трёхполосный 3D-раннер. Стрелки — управление, пробел — прыжок, P — пауза.');
     host.appendChild(this.renderer.domElement);
-    this.scene.background = new T.Color('#dce2d4');
+    this.scene.background = new T.Color('#8fc4df');
     this.scene.fog = new T.Fog('#e9e4ce', 28, 112);
     this.marble = new T.MeshStandardMaterial({ color: '#f2eee3', map: this.makeMarble(), roughness: .62 });
     this.scene.add(new T.HemisphereLight('#f6f5df', '#9d8e79', 2.5));
