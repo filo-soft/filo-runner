@@ -1,6 +1,6 @@
-import * as T from 'three';
-import distantBackground from './assets/distant-greece.svg?url';
-import { RunnerGame } from './game';
+import * as T from "three";
+import distantBackground from "./assets/distant-greece.svg?url";
+import { RunnerGame } from "./game";
 
 type Cloud = { root: T.Group; speed: number; drift: number; minX: number; maxX: number };
 const proto = RunnerGame.prototype as any;
@@ -10,27 +10,33 @@ const originalStep = proto.step;
 const makeCloud = (scene: T.Scene, index: number): Cloud => {
   const root = new T.Group();
   root.name = `SkyCloud_${index}`;
-  const material = new T.MeshStandardMaterial({
-    color: '#ffffff',
-    roughness: 1,
-    transparent: true,
-    opacity: .72,
-    depthWrite: false,
-  });
-  const puffGeo = new T.SphereGeometry(1, 14, 9);
+  // Volumetric 3D clouds only: soft outer ellipsoids plus denser inner puffs.
+  const softMaterial = new T.MeshStandardMaterial({ color: "#ffffff", roughness: 1, transparent: true, opacity: .13, depthWrite: false });
+  const coreMaterial = new T.MeshStandardMaterial({ color: "#ffffff", roughness: 1, transparent: true, opacity: .72, depthWrite: false });
+  const softGeo = new T.SphereGeometry(1, 18, 12);
+  const puffGeo = new T.SphereGeometry(1, 16, 10);
   const count = 5 + index % 3;
+  // Larger low-opacity ellipsoids soften the silhouette while staying fully 3D.
+  for (let i = 0; i < 3; i++) {
+    const haze = new T.Mesh(softGeo, softMaterial);
+    const a = i * 2.1 + index * .63;
+    haze.position.set((i - 1) * 1.15 + Math.sin(a) * .22, Math.sin(a * 1.4) * .16, .38 + Math.cos(a) * .18);
+    const s = 1.05 + (i % 2) * .18;
+    haze.scale.set(s * 1.75, s * .72, s * .96);
+    root.add(haze);
+  }
   for (let i = 0; i < count; i++) {
-    const puff = new T.Mesh(puffGeo, material);
+    const puff = new T.Mesh(puffGeo, coreMaterial);
     const a = i * 1.73 + index * .41;
     puff.position.set((i - (count - 1) / 2) * .95 + Math.sin(a) * .35, Math.sin(a * 1.7) * .22, Math.cos(a) * .35);
     const s = .72 + ((i + index) % 4) * .18;
     puff.scale.set(s * 1.35, s * .55, s * .82);
     root.add(puff);
   }
-  puffGeo.computeBoundingSphere();
   root.position.set(-48 + (index * 17) % 96, 15 + (index % 4) * 3.1, -24 - (index * 11) % 74);
   root.scale.setScalar(.9 + (index % 3) * .24);
-  root.userData.cloudMaterial = material;
+  root.userData.cloudMaterial = coreMaterial;
+  root.userData.cloudSoftMaterial = softMaterial;
   scene.add(root);
   return { root, speed: .55 + (index % 4) * .16, drift: .018 + (index % 3) * .008, minX: -68, maxX: 68 };
 };
@@ -41,11 +47,9 @@ const addSky = (game: any) => {
   const texture = new T.TextureLoader().load(distantBackground);
   texture.colorSpace = T.SRGBColorSpace;
   texture.anisotropy = 4;
-  const sky = new T.Mesh(
-    new T.PlaneGeometry(240, 135),
-    new T.MeshBasicMaterial({ map: texture, depthTest: false, depthWrite: false, fog: false })
-  );
-  sky.name = 'DistantGreekBackground';
+  // Extra-wide backdrop so wide desktop viewports never expose blue side edges.
+  const sky = new T.Mesh(new T.PlaneGeometry(360, 203), new T.MeshBasicMaterial({ map: texture, depthTest: false, depthWrite: false, fog: false }));
+  sky.name = "DistantGreekBackground";
   sky.position.set(0, -2, -108);
   sky.renderOrder = -100;
   scene.add(sky);
@@ -55,15 +59,12 @@ const addSky = (game: any) => {
   game.__skyClouds = clouds;
 };
 
-proto.buildWorld = function () {
-  originalBuildWorld.call(this);
-  addSky(this);
-};
+proto.buildWorld = function () { originalBuildWorld.call(this); addSky(this); };
 
 proto.step = function (dt: number) {
   originalStep.call(this, dt);
   const clouds = (this.__skyClouds || []) as Cloud[];
-  if (this.mode !== 'paused' && this.mode !== 'over') {
+  if (this.mode !== "paused" && this.mode !== "over") {
     for (const cloud of clouds) {
       cloud.root.position.x += cloud.speed * dt;
       cloud.root.position.z += cloud.drift * dt;
