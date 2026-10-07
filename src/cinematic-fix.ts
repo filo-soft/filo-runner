@@ -46,3 +46,9 @@ if (document.readyState === "loading") document.addEventListener("DOMContentLoad
 else mountGrain();
 
 window.addEventListener("beforeunload", () => { if (grainTimer) window.clearInterval(grainTimer); });
+
+const originalRender = T.WebGLRenderer.prototype.render;
+T.WebGLRenderer.prototype.render = function(scene: T.Object3D, camera: T.Camera) {
+  if (scene instanceof T.Scene) scene.background = new T.Color("#8fc4df");
+  originalRender.call(this, scene, camera);
+};
