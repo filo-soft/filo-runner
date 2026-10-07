@@ -11,8 +11,8 @@ const makeCloud = (scene: T.Scene, index: number): Cloud => {
   const root = new T.Group();
   root.name = `SkyCloud_${index}`;
   // Volumetric 3D clouds only: soft outer ellipsoids plus denser inner puffs.
-  const softMaterial = new T.MeshStandardMaterial({ color: "#ffffff", roughness: 1, transparent: true, opacity: .13, depthWrite: false });
-  const coreMaterial = new T.MeshStandardMaterial({ color: "#ffffff", roughness: 1, transparent: true, opacity: .72, depthWrite: false });
+  const softMaterial = new T.MeshStandardMaterial({ color: "#ffffff", roughness: 1, transparent: true, opacity: .09, depthWrite: false });
+  const coreMaterial = new T.MeshStandardMaterial({ color: "#ffffff", roughness: 1, transparent: false, opacity: 1, depthWrite: false });
   const softGeo = new T.SphereGeometry(1, 18, 12);
   const puffGeo = new T.SphereGeometry(1, 16, 10);
   const count = 5 + index % 3;
