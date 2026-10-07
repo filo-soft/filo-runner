@@ -3,16 +3,22 @@ name: Build and publish
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - docs/**
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: publish-pages
+  cancel-in-progress: true
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout exact source commit
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -27,13 +33,13 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Publish built app to docs
+      - name: Publish exact build
         run: |
-          git pull --rebase origin main
+          mkdir -p docs
           cp dist/index.html docs/index.html
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/index.html
           git diff --cached --quiet && exit 0
           git commit -m "chore: publish latest build"
-          git push
+          git push origin HEAD:main
