@@ -74,3 +74,17 @@ proto.step = function (dt: number) {
     }
   }
 };
+const addFilmGrain = () => {
+  if (document.querySelector(".filo-film-grain")) return;
+  const grain = document.createElement("div");
+  grain.className = "filo-film-grain";
+  Object.assign(grain.style, {
+    position: "fixed", inset: "0", zIndex: "40", pointerEvents: "none",
+    opacity: "0.035", mixBlendMode: "soft-light",
+    backgroundImage: "radial-gradient(circle at 17% 23%, rgba(255,255,255,.55) 0 1px, transparent 1.5px), radial-gradient(circle at 71% 68%, rgba(0,0,0,.45) 0 1px, transparent 1.5px), radial-gradient(circle at 43% 84%, rgba(255,255,255,.35) 0 1px, transparent 1.3px)",
+    backgroundSize: "3px 3px, 5px 5px, 7px 7px"
+  });
+  document.body.appendChild(grain);
+};
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", addFilmGrain, { once: true });
+else addFilmGrain();
