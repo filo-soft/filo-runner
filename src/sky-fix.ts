@@ -85,7 +85,8 @@ const addFilmGrain = () => {
     backgroundSize: "3px 3px, 5px 5px, 7px 7px",
     animation: "filo-grain-shift .18s steps(2,end) infinite"
   });
-  if (!document.getElementById("filo-grain-style")) { const style = document.createElement("style"); style.id = "filo-grain-style"; style.textContent = "@keyframes filo-grain-shift{0%{transform:translate(0,0)}25%{transform:translate(-1px,1px)}50%{transform:translate(1px,-1px)}75%{transform:translate(1px,1px)}100%{transform:translate(0,0)}}"; document.head.appendChild(style); }\n  document.body.appendChild(grain);
+  if (!document.getElementById("filo-grain-style")) { const style = document.createElement("style"); style.id = "filo-grain-style"; style.textContent = "@keyframes filo-grain-shift{0%{transform:translate(0,0)}25%{transform:translate(-1px,1px)}50%{transform:translate(1px,-1px)}75%{transform:translate(1px,1px)}100%{transform:translate(0,0)}}"; document.head.appendChild(style); }
+  document.body.appendChild(grain);
 };
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", addFilmGrain, { once: true });
 else addFilmGrain();
